@@ -14,33 +14,45 @@ import { toast } from 'sonner';
 function getActiveUserProfile() {
   try {
     const stored = localStorage.getItem('alzaydan_current_user');
-    const user = stored ? JSON.parse(stored) : null;
+    if (!stored) {
+      return {
+        name: 'Super Admin',
+        email: 'al@gmail.com',
+        role: 'Super Admin',
+        roleTier: 'super-admin',
+        designation: 'Chief Executive Officer (CEO)',
+        department: 'Executive Management'
+      };
+    }
+    const user = JSON.parse(stored);
     const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
     
-    // Look up by email or roleTier
-    const targetEmail = (user?.email || 'al@gmail.com').toLowerCase();
+    // Look up strictly by user's email, id or name
+    const targetEmail = (user?.email || '').toLowerCase().trim();
     const matched = emps.find(
       (e) =>
-        (e.email && e.email.toLowerCase() === targetEmail) ||
-        (e.email && e.email.toLowerCase() === 'al@gmail.com') ||
-        e.roleTier === 'super-admin'
+        (targetEmail && e.email && e.email.toLowerCase().trim() === targetEmail) ||
+        (user?.id && e.id === user.id) ||
+        (user?.name && e.name && e.name.toLowerCase().trim() === user.name.toLowerCase().trim())
     );
 
     if (matched) {
       return {
+        ...matched,
         ...user,
-        name: matched.name || user?.name || 'Super Admin',
-        email: matched.email || user?.email || 'al@gmail.com',
-        image: matched.image || matched.avatar || user?.image || user?.avatar || null,
-        avatar: matched.avatar || matched.image || user?.avatar || user?.image || null,
-        isImage: Boolean(matched.image || matched.avatar || user?.image || user?.avatar),
-        role: matched.role || user?.role || 'Super Admin',
-        designation: matched.designation || user?.designation || 'Chief Executive Officer (CEO)',
-        department: matched.department || user?.department || 'Executive Management'
+        name: user.name || matched.name,
+        email: user.email || matched.email,
+        role: user.role || matched.role || matched.designation || 'Sales Executive',
+        roleTier: user.roleTier || matched.roleTier || 'staff',
+        designation: user.designation || matched.designation || user.role || 'Sales Executive',
+        department: user.department || matched.department || 'Commercial Operations',
+        image: user.image || matched.image || user.avatar || matched.avatar || null,
+        avatar: user.avatar || matched.avatar || user.image || matched.image || null,
+        isImage: Boolean(user.image || matched.image || user.avatar || matched.avatar)
       };
     }
 
-    return user || { name: 'Super Admin', email: 'al@gmail.com', role: 'Super Admin' };
+    return user;
   } catch {
     return { name: 'Super Admin', email: 'al@gmail.com', role: 'Super Admin' };
   }
@@ -200,6 +212,9 @@ export default function Header({
               <div className="text-xs font-bold text-slate-800 leading-tight">
                 {currentUser?.name || 'Super Admin'}
               </div>
+              <div className="text-[10px] text-slate-500 font-medium leading-none mt-0.5">
+                {currentUser?.role || currentUser?.designation || 'Sales Executive'}
+              </div>
             </div>
             <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
           </button>
@@ -227,7 +242,7 @@ export default function Header({
                   </div>
                   <div className="mt-1 flex items-center gap-1.5 text-[10px] font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full w-fit">
                     <Shield className="w-3 h-3 text-blue-600" />
-                    <span>Tier 1: Global Executive Command</span>
+                    <span>{currentUser?.role || currentUser?.designation || 'Staff'}</span>
                   </div>
                 </div>
               </div>

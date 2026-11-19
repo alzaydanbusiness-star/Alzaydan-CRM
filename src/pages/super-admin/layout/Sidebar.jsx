@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   CheckSquare,
@@ -32,6 +32,34 @@ export default function Sidebar({
   // Dropdown state: open only when clicking or navigating to Customer/Sales, collapsed on Dashboard & others
   const [userToggledNav, setUserToggledNav] = useState(null);
   const [prevActiveNav, setPrevActiveNav] = useState(activeNav);
+  const [currentRole, setCurrentRole] = useState(() => {
+    try {
+      const stored = localStorage.getItem('alzaydan_current_user');
+      if (stored) {
+        const u = JSON.parse(stored);
+        return u.role || u.designation || 'International FZE';
+      }
+    } catch {}
+    return 'International FZE';
+  });
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const stored = localStorage.getItem('alzaydan_current_user');
+        if (stored) {
+          const u = JSON.parse(stored);
+          setCurrentRole(u.role || u.designation || 'International FZE');
+        }
+      } catch {}
+    };
+    window.addEventListener('alzaydan_user_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('alzaydan_user_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
 
   if (activeNav !== prevActiveNav) {
     setPrevActiveNav(activeNav);
@@ -133,8 +161,8 @@ export default function Sidebar({
                 <div className="font-extrabold text-white text-sm tracking-tight">
                   Al Zaydan
                 </div>
-                <div className="text-[10px] font-semibold text-slate-300 tracking-wider">
-                  International FZE
+                <div className="text-[10px] font-semibold text-blue-300 tracking-wider uppercase truncate max-w-[140px]" title={currentRole}>
+                  {currentRole}
                 </div>
               </div>
             </div>

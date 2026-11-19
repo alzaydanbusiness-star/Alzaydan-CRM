@@ -119,20 +119,8 @@ export default function LoginPage() {
 
         setTimeout(() => {
           setIsLoading(false);
-          toast.success(`Authentication successful! Welcome, ${matchedUser.name}.`);
-
-          const tier = (matchedUser.roleTier || '').toLowerCase();
-          const roleText = `${matchedUser.role || ''} ${matchedUser.designation || ''} ${matchedUser.crmProfile || ''} ${matchedUser.organizationalPosition || ''}`.toLowerCase();
-
-          if (tier === 'manager' || roleText.includes('manager')) {
-            navigate('/manager/dashboard');
-          } else if (tier === 'team-lead' || roleText.includes('lead')) {
-            navigate('/lead/dashboard');
-          } else if (tier === 'super-admin' || roleText.includes('super admin') || roleText.includes('ceo')) {
-            navigate('/dashboard');
-          } else {
-            navigate('/rep/dashboard');
-          }
+          toast.success(`Authentication successful! Welcome, ${matchedUser.name} (${matchedUser.role || 'Sales Operations'}).`);
+          navigate('/dashboard');
         }, 500);
         return;
       }

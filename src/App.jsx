@@ -34,19 +34,15 @@ export default function App() {
         <Route path="/users" element={<SuperAdminDashboard initialNav="Employees" />} />
         <Route path="/reports" element={<SuperAdminDashboard initialNav="Reports" />} />
         
-        {/* Sales Manager Dashboard routes */}
-        <Route path="/manager" element={<ManagerDashboard />} />
-        <Route path="/manager/dashboard" element={<ManagerDashboard />} />
-
-        {/* Team Lead Dashboard routes */}
-        <Route path="/lead" element={<TeamLeadDashboard />} />
-        <Route path="/lead/dashboard" element={<TeamLeadDashboard />} />
-
-        {/* Tier 4: Sales Executive (SE) Dashboard routes */}
-        <Route path="/rep" element={<SalesRepDashboard />} />
-        <Route path="/rep/dashboard" element={<SalesRepDashboard />} />
-        <Route path="/executive" element={<SalesRepDashboard />} />
-        <Route path="/executive/dashboard" element={<SalesRepDashboard />} />
+        {/* Unified Real CRM Dashboard for all roles */}
+        <Route path="/manager" element={<SuperAdminDashboard />} />
+        <Route path="/manager/dashboard" element={<SuperAdminDashboard />} />
+        <Route path="/lead" element={<SuperAdminDashboard />} />
+        <Route path="/lead/dashboard" element={<SuperAdminDashboard />} />
+        <Route path="/rep" element={<SuperAdminDashboard />} />
+        <Route path="/rep/dashboard" element={<SuperAdminDashboard />} />
+        <Route path="/executive" element={<SuperAdminDashboard />} />
+        <Route path="/executive/dashboard" element={<SuperAdminDashboard />} />
 
         {/* Dedicated Login route */}
         <Route path="/login" element={<LoginPage />} />
