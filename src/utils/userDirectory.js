@@ -110,6 +110,33 @@ export const CANONICAL_SYSTEM_USERS = [
     mobilePrefix: '+971',
     dob: '06-01-2000',
     joinDate: '01-03-2024'
+  },
+  {
+    id: 5,
+    name: 'Shaheer',
+    email: 'shaheer@gmail.com',
+    username: 'shaheer',
+    password: 'shaheer@123',
+    role: 'Commercial Operations',
+    roleTier: 'staff',
+    crmProfile: 'Sales Executive',
+    organizationalPosition: 'Commercial Operations',
+    designation: 'Commercial Operations Specialist',
+    department: 'Sales & Marketing',
+    reportsTo: 'Team Lead',
+    reportingManager: 'Team Lead',
+    employeeType: 'Commercial Operations',
+    status: 'Active',
+    avatarBg: 'bg-teal-600 text-white',
+    avatarText: 'SH',
+    isImage: false,
+    image: null,
+    avatar: null,
+    phone: '+971 50 777 8899',
+    mobileNumber: '50 777 8899',
+    mobilePrefix: '+971',
+    dob: '12-08-1998',
+    joinDate: '01-04-2024'
   }
 ];
 

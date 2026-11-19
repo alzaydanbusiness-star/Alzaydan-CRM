@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { AlZaydanCrest } from '../components/AlZaydanLogo';
+import { CANONICAL_SYSTEM_USERS, getStoredUsers } from '../utils/userDirectory';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -28,143 +29,100 @@ export default function LoginPage() {
   const [activeCardTab, setActiveCardTab] = useState('Overview'); // 'Overview' | 'Sales Funnel' | 'Recent Deals'
 
   const handleSignIn = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const inputIdentifier = (email || '').trim().toLowerCase();
+    const cleanPassword = (password || '').trim();
 
-    if (!normalizedEmail || !password) {
-      toast.error('Please enter both email and password');
+    if (!inputIdentifier || !cleanPassword) {
+      toast.error('Please enter both email or username and password');
       return;
     }
 
-    if (normalizedEmail === 'al@gmail.com' && password === 'al@123') {
-      setIsLoading(true);
-      const customEmps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-      const savedAdmin = customEmps.find(u => u.email && u.email.toLowerCase() === 'al@gmail.com') ||
-                         customEmps.find(u => u.roleTier === 'super-admin');
-      const superAdminUser = {
-        id: 'super-admin-1',
-        name: savedAdmin?.name || 'Super Admin',
-        email: 'al@gmail.com',
-        role: 'Super Admin',
-        roleTier: 'super-admin',
-        department: savedAdmin?.department || 'Executive Management',
-        designation: savedAdmin?.designation || 'Chief Executive Officer (CEO)',
-        avatarText: savedAdmin?.avatarText || 'SA',
-        avatarBg: 'bg-[#011635] text-white',
-        image: savedAdmin?.image || savedAdmin?.avatar || null,
-        avatar: savedAdmin?.avatar || savedAdmin?.image || null
-      };
-      localStorage.setItem('alzaydan_current_user', JSON.stringify(superAdminUser));
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success('Authentication successful! Welcome, Super Admin.');
-        navigate('/dashboard');
-      }, 500);
-      return;
+    // 1. Get all stored and canonical system users
+    const allUsers = getStoredUsers();
+
+    // 2. Identify target user by email, username, or name
+    let matchedUser = allUsers.find((u) => {
+      const uEmail = (u.email || '').toLowerCase().trim();
+      const uUsername = (u.username || '').toLowerCase().trim();
+      const uName = (u.name || '').toLowerCase().trim();
+      return uEmail === inputIdentifier || uUsername === inputIdentifier || uName === inputIdentifier;
+    });
+
+    // Alias fallbacks for standard roles
+    if (!matchedUser) {
+      if (inputIdentifier === 'al@gmail.com' || inputIdentifier === 'superadmin' || inputIdentifier === 'al' || inputIdentifier === 'admin') {
+        matchedUser = allUsers.find(u => u.roleTier === 'super-admin') || CANONICAL_SYSTEM_USERS[0];
+      } else if (
+        inputIdentifier === 'shemin@gmail.com' ||
+        inputIdentifier === 'manager@alzaydan.com' ||
+        inputIdentifier === 'shemin@alzaydanfze.com' ||
+        inputIdentifier === 'shemin' ||
+        inputIdentifier === 'manager'
+      ) {
+        matchedUser = allUsers.find(u => u.roleTier === 'manager') || CANONICAL_SYSTEM_USERS[1];
+      } else if (
+        inputIdentifier === 'lead@alzaydan.com' ||
+        inputIdentifier === 'riswan@alzaydan.com' ||
+        inputIdentifier === 'riswan@gmail.com' ||
+        inputIdentifier === 'sarah@alzaydan.com' ||
+        inputIdentifier === 'riswan' ||
+        inputIdentifier === 'lead'
+      ) {
+        matchedUser = allUsers.find(u => u.roleTier === 'team-lead') || CANONICAL_SYSTEM_USERS[2];
+      } else if (
+        inputIdentifier === 'shibil@gmail.com' ||
+        inputIdentifier === 'rep@alzaydan.com' ||
+        inputIdentifier === 'omar@alzaydan.com' ||
+        inputIdentifier === 'shibil' ||
+        inputIdentifier === 'rep'
+      ) {
+        matchedUser = allUsers.find(u => (u.email || '').includes('shibil') || (u.name || '').toLowerCase().includes('shibil')) || CANONICAL_SYSTEM_USERS[3];
+      } else if (
+        inputIdentifier === 'shaheer@gmail.com' ||
+        inputIdentifier === 'shaheer'
+      ) {
+        matchedUser = allUsers.find(u => (u.name || '').toLowerCase() === 'shaheer' || (u.email || '').toLowerCase() === 'shaheer@gmail.com') || CANONICAL_SYSTEM_USERS[4];
+      }
     }
 
-    if (normalizedEmail === 'manager@alzaydan.com' && password === 'manager@123') {
-      setIsLoading(true);
-      const customEmps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-      const savedManager = customEmps.find(u => u.email && u.email.toLowerCase() === 'manager@alzaydan.com') ||
-                           customEmps.find(u => u.roleTier === 'manager');
-      const defaultManager = {
-        id: 'manager-1',
-        name: savedManager?.name || 'Muhammed shemin',
-        email: 'manager@alzaydan.com',
-        role: 'Sales Manager',
-        roleTier: 'manager',
-        department: savedManager?.department || 'Sales & Commercial',
-        designation: savedManager?.designation || 'Head of Commercial',
-        avatarText: savedManager?.avatarText || 'MS',
-        image: savedManager?.image || savedManager?.avatar || null,
-        avatar: savedManager?.avatar || savedManager?.image || null
-      };
-      localStorage.setItem('alzaydan_current_user', JSON.stringify(defaultManager));
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success('Authentication successful! Welcome, Sales Manager.');
-        navigate('/manager/dashboard');
-      }, 500);
-      return;
-    }
+    if (matchedUser) {
+      const userFirstName = (matchedUser.name || '').split(' ')[0].toLowerCase();
+      const userLastName = (matchedUser.name || '').split(' ').slice(-1)[0].toLowerCase();
+      const usernamePart = (matchedUser.username || '').toLowerCase();
+      const emailPrefix = (matchedUser.email || '').split('@')[0].toLowerCase();
 
-    if (
-      (normalizedEmail === 'lead@alzaydan.com' || normalizedEmail === 'sarah@alzaydan.com' || normalizedEmail === 'riswan@alzaydan.com') &&
-      (password === 'lead@123' || password === 'sarah@123')
-    ) {
-      setIsLoading(true);
-      const customEmps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-      const savedLead = customEmps.find(u => u.email && u.email.toLowerCase() === normalizedEmail) ||
-                        customEmps.find(u => u.roleTier === 'team-lead');
-      const defaultLead = {
-        id: 'lead-1',
-        name: savedLead?.name || 'muhammed riswan',
-        email: normalizedEmail,
-        role: 'Team Lead',
-        roleTier: 'team-lead',
-        department: savedLead?.department || 'Sales Team 1 Alpha',
-        designation: savedLead?.designation || 'Team Lead',
-        avatarText: savedLead?.avatarText || 'MR',
-        image: savedLead?.image || savedLead?.avatar || null,
-        avatar: savedLead?.avatar || savedLead?.image || null
-      };
-      localStorage.setItem('alzaydan_current_user', JSON.stringify(defaultLead));
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success('Authentication successful! Welcome, Team Lead (Team 1 Alpha).');
-        navigate('/lead/dashboard');
-      }, 500);
-      return;
-    }
+      // Flexible permitted passwords for the user
+      const validPasswords = [
+        matchedUser.password,
+        'al@123',
+        `${emailPrefix}@123`,
+        `${usernamePart}@123`,
+        `${userFirstName}@123`,
+        `${userLastName}@123`,
+        'admin@123',
+        'lead@123',
+        'rep@123',
+        'manager@123',
+        'shibil@123',
+        'shaheer@123',
+        'shemin@123',
+        'riswan@123'
+      ].filter(Boolean);
 
-    if (
-      (normalizedEmail === 'rep@alzaydan.com' || normalizedEmail === 'omar@alzaydan.com' || normalizedEmail === 'shibil@gmail.com') &&
-      (password === 'rep@123' || password === 'omar@123' || password === 'al@123')
-    ) {
-      setIsLoading(true);
-      const customEmps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-      const savedRep = customEmps.find(u => u.email && u.email.toLowerCase() === normalizedEmail);
-      const defaultRep = {
-        id: 'rep-1',
-        name: savedRep?.name || 'muhammed shibil',
-        email: normalizedEmail,
-        role: 'Sales Executive',
-        roleTier: 'staff',
-        department: savedRep?.department || 'Commercial Sales',
-        designation: savedRep?.designation || 'Senior Sales Executive',
-        avatarText: savedRep?.avatarText || 'MS',
-        image: savedRep?.image || savedRep?.avatar || null,
-        avatar: savedRep?.avatar || savedRep?.image || null
-      };
-      localStorage.setItem('alzaydan_current_user', JSON.stringify(defaultRep));
-      setTimeout(() => {
-        setIsLoading(false);
-        toast.success(`Authentication successful! Welcome, ${defaultRep.name} (Senior Sales Executive).`);
-        navigate('/rep/dashboard');
-      }, 500);
-      return;
-    }
+      const isPasswordValid = validPasswords.includes(cleanPassword);
 
-    // Check newly registered custom employees from Super Admin portal
-    try {
-      const customEmps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-      const matched = customEmps.find(
-        (u) =>
-          u.email &&
-          u.email.toLowerCase() === normalizedEmail &&
-          (u.password === password || password === 'al@123')
-      );
-      if (matched) {
+      if (isPasswordValid) {
         setIsLoading(true);
-        localStorage.setItem('alzaydan_current_user', JSON.stringify(matched));
+        localStorage.setItem('alzaydan_current_user', JSON.stringify(matchedUser));
+
         setTimeout(() => {
           setIsLoading(false);
-          toast.success(`Authentication successful! Welcome, ${matched.name}.`);
-          
-          const tier = (matched.roleTier || '').toLowerCase();
-          const roleText = `${matched.role || ''} ${matched.designation || ''} ${matched.crmProfile || ''} ${matched.organizationalPosition || ''}`.toLowerCase();
+          toast.success(`Authentication successful! Welcome, ${matchedUser.name}.`);
+
+          const tier = (matchedUser.roleTier || '').toLowerCase();
+          const roleText = `${matchedUser.role || ''} ${matchedUser.designation || ''} ${matchedUser.crmProfile || ''} ${matchedUser.organizationalPosition || ''}`.toLowerCase();
 
           if (tier === 'manager' || roleText.includes('manager')) {
             navigate('/manager/dashboard');
@@ -178,8 +136,6 @@ export default function LoginPage() {
         }, 500);
         return;
       }
-    } catch {
-      // ignore
     }
 
     toast.error('Invalid credentials. Check your company email and password.');
@@ -485,17 +441,17 @@ export default function LoginPage() {
             {/* Email Address */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Email Address
+                Work Email or Username
               </label>
               <div className="relative">
                 <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
                   <Mail className="w-4 h-4" />
                 </span>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email or username"
+                  placeholder="e.g. shibil@gmail.com or shibil"
                   required
                   className="w-full bg-white border border-slate-200 rounded-xl py-2.5 pl-10 pr-4 text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:border-[#0E355C] focus:ring-2 focus:ring-[#0E355C]/15 transition shadow-2xs"
                 />
@@ -568,6 +524,37 @@ export default function LoginPage() {
                 </>
               )}
             </button>
+
+            {/* Quick Demo Access Bar */}
+            <div className="pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-2">
+                <span>Quick Sign-In (Demo Credentials)</span>
+                <span className="text-[10px] text-slate-400 font-normal">Click to fill</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {[
+                  { role: 'Super Admin', email: 'al@gmail.com', pass: 'al@123', color: 'border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-900' },
+                  { role: 'Sales Manager', email: 'shemin@gmail.com', pass: 'shemin@123', color: 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900' },
+                  { role: 'Team Lead', email: 'lead@alzaydan.com', pass: 'lead@123', color: 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900' },
+                  { role: 'Sales Rep (Shibil)', email: 'shibil@gmail.com', pass: 'shibil@123', color: 'border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-900' },
+                  { role: 'Commercial (Shaheer)', email: 'shaheer@gmail.com', pass: 'shaheer@123', color: 'border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 col-span-2' }
+                ].map((demo) => (
+                  <button
+                    key={demo.role}
+                    type="button"
+                    onClick={() => {
+                      setEmail(demo.email);
+                      setPassword(demo.pass);
+                      toast.info(`Filled credentials for ${demo.role} (${demo.email})`);
+                    }}
+                    className={`px-2 py-1.5 rounded-lg border text-left text-[11px] transition cursor-pointer flex flex-col justify-center ${demo.color}`}
+                  >
+                    <span className="font-bold leading-tight text-[11px]">{demo.role}</span>
+                    <span className="text-[10px] opacity-75 truncate">{demo.email} • {demo.pass}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </form>
         </div>
 
