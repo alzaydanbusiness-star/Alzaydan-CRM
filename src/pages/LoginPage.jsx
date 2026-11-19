@@ -524,37 +524,6 @@ export default function LoginPage() {
                 </>
               )}
             </button>
-
-            {/* Quick Demo Access Bar */}
-            <div className="pt-3 border-t border-slate-100">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 mb-2">
-                <span>Quick Sign-In (Demo Credentials)</span>
-                <span className="text-[10px] text-slate-400 font-normal">Click to fill</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1.5">
-                {[
-                  { role: 'Super Admin', email: 'al@gmail.com', pass: 'al@123', color: 'border-blue-200 bg-blue-50/70 hover:bg-blue-100 text-blue-900' },
-                  { role: 'Sales Manager', email: 'shemin@gmail.com', pass: 'shemin@123', color: 'border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-900' },
-                  { role: 'Team Lead', email: 'lead@alzaydan.com', pass: 'lead@123', color: 'border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-900' },
-                  { role: 'Sales Rep (Shibil)', email: 'shibil@gmail.com', pass: 'shibil@123', color: 'border-teal-200 bg-teal-50/70 hover:bg-teal-100 text-teal-900' },
-                  { role: 'Commercial (Shaheer)', email: 'shaheer@gmail.com', pass: 'shaheer@123', color: 'border-amber-200 bg-amber-50/70 hover:bg-amber-100 text-amber-900 col-span-2' }
-                ].map((demo) => (
-                  <button
-                    key={demo.role}
-                    type="button"
-                    onClick={() => {
-                      setEmail(demo.email);
-                      setPassword(demo.pass);
-                      toast.info(`Filled credentials for ${demo.role} (${demo.email})`);
-                    }}
-                    className={`px-2 py-1.5 rounded-lg border text-left text-[11px] transition cursor-pointer flex flex-col justify-center ${demo.color}`}
-                  >
-                    <span className="font-bold leading-tight text-[11px]">{demo.role}</span>
-                    <span className="text-[10px] opacity-75 truncate">{demo.email} • {demo.pass}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </form>
         </div>
 
