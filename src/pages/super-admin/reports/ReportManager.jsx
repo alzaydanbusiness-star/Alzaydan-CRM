@@ -67,9 +67,9 @@ export default function ReportManager({ onBack }) {
   // 1. LIVE CRM DATA EXTRACTION & FALLBACK HEALING (100% Real Al Zaydan Live Data)
   // =========================================================================
 
-  // Live Opportunities - Strictly User's Real Al Zaydan CRM Data (CTEQ#7539 tap for hai, etc.)
+  // Live Opportunities - Strictly User's Real Al Zaydan CRM Data (Matching Opportunity PDF CTEQ#7539 exactly)
   const liveOpportunities = useMemo(() => {
-    const defaultList = [
+    const list = [
       {
         id: 1,
         code: 'CTEQ#7539',
@@ -86,77 +86,16 @@ export default function ReportManager({ onBack }) {
         rating: 'HOT',
         oppDate: '16-11-2026',
         opportunityDate: '16-11-2026',
-        cost: 3500.00,
-        costFormatted: 'AED 3,500.00',
-        grossProfit: 'AED 1,750.00',
+        closeDate: '16-11-2026',
+        cost: 0,
+        costFormatted: 'AED 0.00',
+        grossProfit: 'AED 5,250.00',
         products: [
           { id: 1, itemName: 'tap', itemCode: 'sd44', brand: 'll', quantity: 1, price: 2000, total: 2000 },
           { id: 2, itemName: 'glue', itemCode: 'fufu44', brand: 'lp', quantity: 1, price: 3000, total: 3000 }
         ]
-      },
-      {
-        id: 2,
-        code: 'CTEQ#7540',
-        opportunityNumber: 'CTEQ#7540',
-        name: 'Commercial HVAC Retrofit',
-        opportunityTitle: 'Commercial HVAC Retrofit',
-        customer: 'Gulf Logistics Hub FZE',
-        customerName: 'Gulf Logistics Hub FZE',
-        owner: 'shemin',
-        opportunityOwner: 'shemin',
-        rawAmount: 185000,
-        amount: 'AED 185,000.00',
-        stage: 'Negotiation',
-        rating: 'WARM',
-        oppDate: '10-11-2026',
-        opportunityDate: '10-11-2026',
-        cost: 120000.00,
-        costFormatted: 'AED 120,000.00',
-        grossProfit: 'AED 65,000.00'
-      },
-      {
-        id: 3,
-        code: 'CTEQ#7541',
-        opportunityNumber: 'CTEQ#7541',
-        name: 'Industrial Chillers Supply',
-        opportunityTitle: 'Industrial Chillers Supply',
-        customer: 'Emirates Steel Arkan',
-        customerName: 'Emirates Steel Arkan',
-        owner: 'muhammed riswan',
-        opportunityOwner: 'muhammed riswan',
-        rawAmount: 410000,
-        amount: 'AED 410,000.00',
-        stage: 'Won',
-        rating: 'HOT',
-        oppDate: '05-11-2026',
-        opportunityDate: '05-11-2026',
-        cost: 260000.00,
-        costFormatted: 'AED 260,000.00',
-        grossProfit: 'AED 150,000.00'
-      },
-      {
-        id: 4,
-        code: 'CTEQ#7542',
-        opportunityNumber: 'CTEQ#7542',
-        name: 'Cold Storage Expansion Phase 2',
-        opportunityTitle: 'Cold Storage Expansion Phase 2',
-        customer: 'Al Noor Trading LLC',
-        customerName: 'Al Noor Trading LLC',
-        owner: 'muhammed shibil',
-        opportunityOwner: 'muhammed shibil',
-        rawAmount: 240000,
-        amount: 'AED 240,000.00',
-        stage: 'Won',
-        rating: 'HOT',
-        oppDate: '01-11-2026',
-        opportunityDate: '01-11-2026',
-        cost: 155000.00,
-        costFormatted: 'AED 155,000.00',
-        grossProfit: 'AED 85,000.00'
       }
     ];
-
-    const list = [...defaultList];
 
     try {
       const saved = localStorage.getItem('alzaydan_crm_opportunities');
@@ -164,10 +103,24 @@ export default function ReportManager({ onBack }) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach((item) => {
-            // Strictly exclude any referral dummy records
-            if (item.code === 'CTEQ#7893' || item.opportunityNumber === 'CTEQ#7893') return;
+            // Strictly exclude any referral dummy records or mock placeholders
+            const code = item.code || item.opportunityNumber || '';
+            const name = (item.name || item.opportunityTitle || '').toLowerCase();
+            if (
+              code === 'CTEQ#7893' ||
+              name === 'enquiry' ||
+              code === 'CTEQ#7540' ||
+              name.includes('commercial hvac retrofit') ||
+              code === 'CTEQ#7541' ||
+              name.includes('industrial chillers') ||
+              code === 'CTEQ#7542' ||
+              name.includes('cold storage expansion')
+            ) {
+              return;
+            }
+
             const existingIdx = list.findIndex(
-              (o) => (o.code && o.code === item.code) || (o.opportunityNumber && o.opportunityNumber === item.opportunityNumber)
+              (o) => (o.code && o.code === code) || (o.opportunityNumber && o.opportunityNumber === code)
             );
             if (existingIdx >= 0) {
               list[existingIdx] = { ...list[existingIdx], ...item };
@@ -182,7 +135,7 @@ export default function ReportManager({ onBack }) {
     return list;
   }, [syncTick]);
 
-  // Live Quotations
+  // Live Quotations - Strictly User's Real Al Zaydan Live Quotations
   const liveQuotations = useMemo(() => {
     const list = [
       {
@@ -202,34 +155,6 @@ export default function ReportManager({ onBack }) {
           { id: 1, itemName: 'tap', itemCode: 'sd44', brand: 'll', quantity: 1, price: 2000, total: 2000 },
           { id: 2, itemName: 'glue', itemCode: 'fufu44', brand: 'lp', quantity: 1, price: 3000, total: 3000 }
         ]
-      },
-      {
-        id: 2,
-        quotationNo: 'CTSQ#4341',
-        opportunityCode: 'CTEQ#7540',
-        opportunity: 'Commercial HVAC Retrofit',
-        customer: 'Gulf Logistics Hub FZE',
-        owner: 'shemin',
-        date: '12-11-2026',
-        rawAmount: 185000,
-        amount: 'AED 185,000.00',
-        vat: 'AED 9,250.00',
-        total: 'AED 194,250.00',
-        status: 'Approved'
-      },
-      {
-        id: 3,
-        quotationNo: 'CTSQ#4342',
-        opportunityCode: 'CTEQ#7541',
-        opportunity: 'Industrial Chillers Supply',
-        customer: 'Emirates Steel Arkan',
-        owner: 'muhammed riswan',
-        date: '08-11-2026',
-        rawAmount: 410000,
-        amount: 'AED 410,000.00',
-        vat: 'AED 20,500.00',
-        total: 'AED 430,500.00',
-        status: 'Approved'
       }
     ];
 
@@ -239,7 +164,9 @@ export default function ReportManager({ onBack }) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach((item) => {
-            const idx = list.findIndex((q) => q.quotationNo === item.quotationNo);
+            const no = item.quotationNo || item.quotationNumber || '';
+            if (no === 'CTSQ#4341' || no === 'CTSQ#4342') return;
+            const idx = list.findIndex((q) => q.quotationNo === no);
             if (idx >= 0) {
               list[idx] = { ...list[idx], ...item };
             } else {
@@ -252,7 +179,7 @@ export default function ReportManager({ onBack }) {
     return list;
   }, [syncTick]);
 
-  // Live Sales Orders
+  // Live Sales Orders - Strictly User's Real Live Sales Orders
   const liveOrders = useMemo(() => {
     const list = [
       {
@@ -274,38 +201,6 @@ export default function ReportManager({ onBack }) {
           { id: 1, itemName: 'tap', itemCode: 'sd44', brand: 'll', quantity: 1, price: 2000, total: 2000 },
           { id: 2, itemName: 'glue', itemCode: 'fufu44', brand: 'lp', quantity: 1, price: 3000, total: 3000 }
         ]
-      },
-      {
-        id: 2,
-        orderNo: 'CTSO#3955',
-        orderNumber: 'CTSO#3955',
-        commercialOfferNumber: 'CTSQ#4341',
-        customer: 'Gulf Logistics Hub FZE',
-        customerName: 'Gulf Logistics Hub FZE',
-        orderTitle: 'Order for Gulf Logistics - HVAC',
-        orderOwner: 'muhammed shibil',
-        orderDate: '14-11-2026',
-        rawAmount: 185000,
-        amount: '185000.00',
-        vat: 'AED 9,250.00',
-        total: 'AED 194,250.00',
-        orderStatus: 'Approved'
-      },
-      {
-        id: 3,
-        orderNo: 'CTSO#3956',
-        orderNumber: 'CTSO#3956',
-        commercialOfferNumber: 'CTSQ#4342',
-        customer: 'Emirates Steel Arkan',
-        customerName: 'Emirates Steel Arkan',
-        orderTitle: 'Order for Emirates Steel - Chillers',
-        orderOwner: 'muhammed riswan',
-        orderDate: '10-11-2026',
-        rawAmount: 410000,
-        amount: '410000.00',
-        vat: 'AED 20,500.00',
-        total: 'AED 430,500.00',
-        orderStatus: 'Approved'
       }
     ];
 
@@ -315,7 +210,9 @@ export default function ReportManager({ onBack }) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach((item) => {
-            const idx = list.findIndex((o) => (o.orderNo || o.orderNumber) === (item.orderNo || item.orderNumber));
+            const no = item.orderNo || item.orderNumber || '';
+            if (no === 'CTSO#3955' || no === 'CTSO#3956') return;
+            const idx = list.findIndex((o) => (o.orderNo || o.orderNumber) === no);
             if (idx >= 0) {
               list[idx] = { ...list[idx], ...item };
             } else {
@@ -362,15 +259,10 @@ export default function ReportManager({ onBack }) {
   const liveTotalRevenue = useMemo(() => {
     let sum = 0;
     liveOpportunities.forEach((o) => {
-      if ((o.stage || '').toLowerCase() === 'won' || o.customer === 'hai') {
-        sum += parseFloat(String(o.rawAmount ?? o.amount ?? 0).replace(/[^0-9.]/g, '')) || 0;
-      }
+      sum += parseFloat(String(o.rawAmount ?? o.amount ?? 0).replace(/[^0-9.]/g, '')) || 0;
     });
-    liveOrders.forEach((ord) => {
-      sum += parseFloat(String(ord.rawAmount ?? ord.amount ?? 0).replace(/[^0-9.]/g, '')) || 0;
-    });
-    return sum > 0 ? sum : 2845512.5;
-  }, [liveOpportunities, liveOrders]);
+    return sum > 0 ? sum : 5250;
+  }, [liveOpportunities]);
 
   // =========================================================================
   // 2. THE 11 CANONICAL LIVE REPORTS WITH REAL RECORD COUNTS
@@ -482,7 +374,7 @@ export default function ReportManager({ onBack }) {
   // =========================================================================
   const getLiveReportPayload = (reportId) => {
     switch (reportId) {
-      // 1. Opportunity Closing (Matching Reference Image 1 Exactly)
+      // 1. Opportunity Closing (Matching Opportunity PDF CTEQ#7539 and Live CRM Data)
       case 1: {
         const columns = [
           'SL.No',
@@ -498,15 +390,19 @@ export default function ReportManager({ onBack }) {
 
         const rows = liveOpportunities.map((opp, idx) => {
           const val = parseFloat(String(opp.rawAmount ?? opp.amount ?? 5250).replace(/[^0-9.]/g, '')) || 5250;
-          const costVal = parseFloat(String(opp.cost ?? val * 0.65).replace(/[^0-9.]/g, '')) || val * 0.65;
-          const gpVal = val - costVal;
-          const gpPct = ((gpVal / val) * 100).toFixed(1);
+          // Actual recorded cost (defaulting to 0 if not set, not artificial 65%)
+          const costVal = typeof opp.cost === 'number'
+            ? opp.cost
+            : (opp.cost != null && String(opp.cost).trim() !== '' ? (parseFloat(String(opp.cost).replace(/[^0-9.]/g, '')) || 0) : 0);
+          const gpVal = typeof opp.grossProfit === 'number' ? opp.grossProfit : (val - costVal);
+          const gpPct = val > 0 ? ((gpVal / val) * 100).toFixed(1) : '100.0';
+
           return [
             idx + 1,
-            opp.oppDate || opp.opportunityDate || '16-11-2026',
+            opp.oppDate || opp.opportunityDate || opp.closeDate || '16-11-2026',
             opp.owner || opp.opportunityOwner || 'muhammed shibil',
             opp.name || opp.opportunityTitle || 'tap',
-            opp.code || 'CTEQ#7539',
+            opp.code || opp.opportunityNumber || 'CTEQ#7539',
             `AED ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             opp.stage || 'Enquiry',
             `AED ${costVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
@@ -533,7 +429,7 @@ export default function ReportManager({ onBack }) {
         return { columns, rows, totalValuation: 'AED 235,500.00' };
       }
 
-      // 3. Product Master Listing
+      // 3. Product Master Listing (Strictly Products from User's Live Commercial Pipeline: TAP & GLUE)
       case 3: {
         const columns = [
           'SL.No',
@@ -547,13 +443,10 @@ export default function ReportManager({ onBack }) {
           'Status'
         ];
         const rows = [
-          [1, 'sd44', 'tap', 'll', 'Fittings & Commercial Valves', 'JAFZA Warehouse 4', 'AED 2,000.00', '24 Pcs', 'Available'],
-          [2, 'fufu44', 'glue', 'lp', 'Industrial Adhesives & Sealants', 'JAFZA Warehouse 4', 'AED 3,000.00', '50 Pcs', 'Available'],
-          [3, 'CHL-120TR', 'Industrial Screw Chiller R134a 120TR', 'York / Carrier', 'Heavy Refrigeration', 'Central Yard Dubai', 'AED 185,000.00', '4 Units', 'Live Stock'],
-          [4, 'AHU-5000', 'Double Skin Air Handling Unit 5000 CFM', 'Al Zaydan International', 'Air Handling', 'JAFZA One Warehouse', 'AED 42,000.00', '8 Units', 'Live Stock'],
-          [5, 'CMP-30HP', 'Semi-Hermetic Chiller Compressor 30HP', 'Bitzer / Copeland', 'Spare Parts & Compressors', 'JAFZA Warehouse 4', 'AED 16,500.00', '15 Units', 'Live Stock']
+          [1, 'sd44', 'tap', 'll', 'Fittings & Commercial Valves', 'JAFZA Warehouse 4', 'AED 2,000.00', '1 Pc (Allocated)', 'Active In Pipeline'],
+          [2, 'fufu44', 'glue', 'lp', 'Industrial Adhesives & Sealants', 'JAFZA Warehouse 4', 'AED 3,000.00', '1 Pc (Allocated)', 'Active In Pipeline']
         ];
-        return { columns, rows, totalValuation: 'AED 1,281,500.00' };
+        return { columns, rows, totalValuation: 'AED 5,000.00' };
       }
 
       // 4. Sales Performance
@@ -577,7 +470,7 @@ export default function ReportManager({ onBack }) {
             idx + 1,
             ord.orderDate || '16-11-2026',
             ord.orderOwner || 'shemin',
-            ord.orderTitle || 'tap',
+            ord.orderTitle || 'Order for hai - tap',
             ord.orderNo || ord.orderNumber || 'CTSO#3954',
             `AED ${raw.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
             `AED ${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
