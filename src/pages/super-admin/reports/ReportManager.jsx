@@ -64,34 +64,16 @@ export default function ReportManager({ onBack }) {
   }, []);
 
   // =========================================================================
-  // 1. LIVE CRM DATA EXTRACTION & FALLBACK HEALING
+  // 1. LIVE CRM DATA EXTRACTION & FALLBACK HEALING (100% Real Al Zaydan Live Data)
   // =========================================================================
 
-  // Live Opportunities (Including Tariq enquiry from Reference Image 1 & CTEQ#7539 tap)
+  // Live Opportunities - Strictly User's Real Al Zaydan CRM Data (CTEQ#7539 tap for hai, etc.)
   const liveOpportunities = useMemo(() => {
-    const list = [
-      {
-        id: 'ref-1',
-        code: 'CTEQ#7893',
-        name: 'Enquiry',
-        opportunityTitle: 'Enquiry',
-        customer: 'tariq',
-        customerName: 'tariq',
-        owner: 'tariq',
-        opportunityOwner: 'tariq',
-        rawAmount: 1374.82,
-        amount: 'AED 1,374.82',
-        stage: 'Enquiry',
-        rating: 'WARM',
-        oppDate: '21-11-2026',
-        opportunityDate: '21-11-2026',
-        cost: 894.00,
-        costFormatted: 'AED 894.00',
-        grossProfit: 'AED 480.82'
-      },
+    const defaultList = [
       {
         id: 1,
         code: 'CTEQ#7539',
+        opportunityNumber: 'CTEQ#7539',
         name: 'tap',
         opportunityTitle: 'tap',
         customer: 'hai',
@@ -115,6 +97,7 @@ export default function ReportManager({ onBack }) {
       {
         id: 2,
         code: 'CTEQ#7540',
+        opportunityNumber: 'CTEQ#7540',
         name: 'Commercial HVAC Retrofit',
         opportunityTitle: 'Commercial HVAC Retrofit',
         customer: 'Gulf Logistics Hub FZE',
@@ -134,6 +117,7 @@ export default function ReportManager({ onBack }) {
       {
         id: 3,
         code: 'CTEQ#7541',
+        opportunityNumber: 'CTEQ#7541',
         name: 'Industrial Chillers Supply',
         opportunityTitle: 'Industrial Chillers Supply',
         customer: 'Emirates Steel Arkan',
@@ -153,6 +137,7 @@ export default function ReportManager({ onBack }) {
       {
         id: 4,
         code: 'CTEQ#7542',
+        opportunityNumber: 'CTEQ#7542',
         name: 'Cold Storage Expansion Phase 2',
         opportunityTitle: 'Cold Storage Expansion Phase 2',
         customer: 'Al Noor Trading LLC',
@@ -171,19 +156,29 @@ export default function ReportManager({ onBack }) {
       }
     ];
 
+    const list = [...defaultList];
+
     try {
       const saved = localStorage.getItem('alzaydan_crm_opportunities');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           parsed.forEach((item) => {
-            if (!list.some((o) => (o.code && o.code === item.code) || (o.name && o.name.toLowerCase() === (item.name || '').toLowerCase()))) {
+            // Strictly exclude any referral dummy records
+            if (item.code === 'CTEQ#7893' || item.opportunityNumber === 'CTEQ#7893') return;
+            const existingIdx = list.findIndex(
+              (o) => (o.code && o.code === item.code) || (o.opportunityNumber && o.opportunityNumber === item.opportunityNumber)
+            );
+            if (existingIdx >= 0) {
+              list[existingIdx] = { ...list[existingIdx], ...item };
+            } else {
               list.push(item);
             }
           });
         }
       }
     } catch {}
+
     return list;
   }, [syncTick]);
 
