@@ -40,6 +40,7 @@ export default function ReportManager({ onBack }) {
   // Filter state for inline report runner
   const [filterMonthYear, setFilterMonthYear] = useState('');
   const [appliedFilterMonthYear, setAppliedFilterMonthYear] = useState('');
+  const [isFilterOpen, setIsFilterOpen] = useState(true);
 
   // Live storage sync ticker to ensure real-time reactive updates
   const [syncTick, setSyncTick] = useState(0);
@@ -701,6 +702,7 @@ export default function ReportManager({ onBack }) {
     const payload = getLiveReportPayload(report.id);
     setFilterMonthYear('');
     setAppliedFilterMonthYear('');
+    setIsFilterOpen(true);
     setActiveRunningReport({
       ...report,
       payload
@@ -717,7 +719,18 @@ export default function ReportManager({ onBack }) {
     setActiveRunningReport(null);
     setFilterMonthYear('');
     setAppliedFilterMonthYear('');
+    setIsFilterOpen(true);
     toast.success('Report closed');
+  };
+
+  // Close/collapse the inner filter sidebar inside the report
+  const handleCloseInnerFilter = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setIsFilterOpen(false);
+    toast.info('Filter panel collapsed');
   };
 
   const handleResetFilter = (e) => {
@@ -883,83 +896,98 @@ export default function ReportManager({ onBack }) {
               </button>
             </div>
 
-            {/* Main Content: 2-Column Layout */}
-            <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-              {/* Left Column: Filter Sidebar */}
-              <div className="lg:col-span-3">
-                <div className="bg-white border border-slate-200 rounded-lg p-4 relative shadow-2xs space-y-3.5">
-                  {/* Top-right red [X] button - Closes the report view */}
-                  <button
-                    type="button"
-                    onClick={handleCloseReport}
-                    className="absolute top-2.5 right-2.5 w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 active:scale-95 text-white flex items-center justify-center transition cursor-pointer shadow-2xs z-10"
-                    title="Close Report"
-                  >
-                    <X className="w-3.5 h-3.5 stroke-[2.5] pointer-events-none" />
-                  </button>
+            {/* Main Content: Dynamic Layout (2-Column when filter open, Full-Width when closed) */}
+            <div className={`p-4 items-start ${isFilterOpen ? 'grid grid-cols-1 lg:grid-cols-12 gap-5' : 'space-y-3'}`}>
+              {/* Left Column: Filter Sidebar (Collapsible via inner close icon) */}
+              {isFilterOpen && (
+                <div className="lg:col-span-3">
+                  <div className="bg-white border border-slate-200 rounded-lg p-4 relative shadow-2xs space-y-3.5">
+                    {/* Top-right red [X] button - Closes the inner filter sidebar */}
+                    <button
+                      type="button"
+                      onClick={handleCloseInnerFilter}
+                      className="absolute top-2.5 right-2.5 w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 active:scale-95 text-white flex items-center justify-center transition cursor-pointer shadow-2xs z-10"
+                      title="Close Filter Panel"
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[2.5] pointer-events-none" />
+                    </button>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5 pr-8">
-                      <label className="block text-xs font-semibold text-slate-700">
-                        Order Month &amp; Year
-                      </label>
-                      {filterMonthYear && (
-                        <button
-                          type="button"
-                          onClick={handleResetFilter}
-                          className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer"
-                          title="Reset filter selection"
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5 pr-8">
+                        <label className="block text-xs font-semibold text-slate-700">
+                          Order Month &amp; Year
+                        </label>
+                        {filterMonthYear && (
+                          <button
+                            type="button"
+                            onClick={handleResetFilter}
+                            className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer"
+                            title="Reset filter selection"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <div className="relative">
+                        <select
+                          value={filterMonthYear}
+                          onChange={(e) => setFilterMonthYear(e.target.value)}
+                          className="w-full h-8 px-2.5 pr-7 bg-white border border-slate-300 rounded text-xs text-slate-700 focus:outline-hidden focus:border-[#011635] appearance-none cursor-pointer"
                         >
-                          Reset
-                        </button>
-                      )}
+                          <option value="">Select</option>
+                          <option value="11-2026">November 2026</option>
+                          <option value="10-2026">October 2026</option>
+                          <option value="09-2026">September 2026</option>
+                          <option value="08-2026">August 2026</option>
+                          <option value="all">All Month &amp; Year</option>
+                        </select>
+                        <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
                     </div>
-                    <div className="relative">
-                      <select
-                        value={filterMonthYear}
-                        onChange={(e) => setFilterMonthYear(e.target.value)}
-                        className="w-full h-8 px-2.5 pr-7 bg-white border border-slate-300 rounded text-xs text-slate-700 focus:outline-hidden focus:border-[#011635] appearance-none cursor-pointer"
-                      >
-                        <option value="">Select</option>
-                        <option value="11-2026">November 2026</option>
-                        <option value="10-2026">October 2026</option>
-                        <option value="09-2026">September 2026</option>
-                        <option value="08-2026">August 2026</option>
-                        <option value="all">All Month &amp; Year</option>
-                      </select>
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    </div>
-                  </div>
 
-                  {/* Filter Action Buttons: [# Customize] and [🔍 Search] */}
-                  <div className="flex items-center gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setActiveCustomizingReport(activeRunningReport)}
-                      className="flex-1 py-1.5 px-2 bg-[#F59E0B] hover:bg-[#D97706] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
-                    >
-                      <Sliders className="w-3 h-3" />
-                      <span>Customize</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApplyFilter}
-                      className="flex-1 py-1.5 px-2 bg-[#011635] hover:bg-[#07244A] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
-                    >
-                      <Search className="w-3 h-3" />
-                      <span>Search</span>
-                    </button>
+                    {/* Filter Action Buttons: [# Customize] and [🔍 Search] */}
+                    <div className="flex items-center gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setActiveCustomizingReport(activeRunningReport)}
+                        className="flex-1 py-1.5 px-2 bg-[#F59E0B] hover:bg-[#D97706] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
+                      >
+                        <Sliders className="w-3 h-3 pointer-events-none" />
+                        <span>Customize</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApplyFilter}
+                        className="flex-1 py-1.5 px-2 bg-[#011635] hover:bg-[#07244A] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
+                      >
+                        <Search className="w-3 h-3 pointer-events-none" />
+                        <span>Search</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Right Column: Table Header, Green Export Button, and Blue Thead Table */}
-              <div className="lg:col-span-9 space-y-2 overflow-hidden">
-                {/* Header row above table: [Report Title] and [📥 Export] */}
+              {/* Right Column: Table Header, Green Export Button, and Blue Thead Table (Full Width when filter closed) */}
+              <div className={`${isFilterOpen ? 'lg:col-span-9' : 'w-full'} space-y-2 overflow-hidden`}>
+                {/* Header row above table: [Report Title + Filter Toggle] and [📥 Export] */}
                 <div className="flex items-center justify-between pb-1">
-                  <h3 className="text-sm font-semibold text-slate-800">
-                    {activeRunningReport.title}
-                  </h3>
+                  <div className="flex items-center gap-2.5">
+                    <h3 className="text-sm font-semibold text-slate-800">
+                      {activeRunningReport.title}
+                    </h3>
+                    {!isFilterOpen && (
+                      <button
+                        type="button"
+                        onClick={() => setIsFilterOpen(true)}
+                        className="px-2 py-1 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 text-xs font-semibold rounded flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                        title="Show Filter Panel"
+                      >
+                        <Sliders className="w-3 h-3 text-slate-600 pointer-events-none" />
+                        <span>Filter</span>
+                      </button>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => handleExportCSV(activeRunningReport.title, activeRunningReport.payload)}
