@@ -708,7 +708,23 @@ export default function ReportManager({ onBack }) {
     toast.success(`Opening live "${report.title}" report...`);
   };
 
-  const handleResetFilter = () => {
+  // Close active report runner view and return to report listing
+  const handleCloseReport = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    setActiveRunningReport(null);
+    setFilterMonthYear('');
+    setAppliedFilterMonthYear('');
+    toast.success('Report closed');
+  };
+
+  const handleResetFilter = (e) => {
+    if (e && typeof e.preventDefault === 'function') {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     setFilterMonthYear('');
     setAppliedFilterMonthYear('');
     toast.info('Filters reset to default');
@@ -788,11 +804,11 @@ export default function ReportManager({ onBack }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={activeRunningReport ? () => setActiveRunningReport(null) : (onBack || (() => toast.info('Navigating back')))}
+            onClick={activeRunningReport ? handleCloseReport : (onBack || (() => toast.info('Navigating back')))}
             className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
             title="Go Back"
           >
-            <ArrowLeft className="w-4 h-4" />
+            <ArrowLeft className="w-4 h-4 pointer-events-none" />
           </button>
 
           <div className="flex items-center gap-2">
@@ -813,7 +829,7 @@ export default function ReportManager({ onBack }) {
             type="button"
             onClick={() => {
               setActiveTab('list');
-              setActiveRunningReport(null);
+              handleCloseReport();
             }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'list' && !activeRunningReport
@@ -827,7 +843,7 @@ export default function ReportManager({ onBack }) {
             type="button"
             onClick={() => {
               setActiveTab('analytics');
-              setActiveRunningReport(null);
+              handleCloseReport();
             }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'analytics'
@@ -859,11 +875,11 @@ export default function ReportManager({ onBack }) {
               </div>
               <button
                 type="button"
-                onClick={() => setActiveRunningReport(null)}
-                className="w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-2xs"
+                onClick={handleCloseReport}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded bg-[#EF4444] hover:bg-red-600 active:scale-95 text-white flex items-center justify-center transition cursor-pointer shadow-xs z-10"
                 title="Close Report View"
               >
-                <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                <X className="w-4 h-4 stroke-[2.5] pointer-events-none" />
               </button>
             </div>
 
@@ -872,20 +888,32 @@ export default function ReportManager({ onBack }) {
               {/* Left Column: Filter Sidebar */}
               <div className="lg:col-span-3">
                 <div className="bg-white border border-slate-200 rounded-lg p-4 relative shadow-2xs space-y-3.5">
-                  {/* Top-right red [X] button to clear filter */}
+                  {/* Top-right red [X] button - Closes the report view */}
                   <button
                     type="button"
-                    onClick={handleResetFilter}
-                    className="absolute top-2.5 right-2.5 w-5 h-5 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-2xs"
-                    title="Reset Filter"
+                    onClick={handleCloseReport}
+                    className="absolute top-2.5 right-2.5 w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 active:scale-95 text-white flex items-center justify-center transition cursor-pointer shadow-2xs z-10"
+                    title="Close Report"
                   >
-                    <X className="w-3 h-3 stroke-[2.5]" />
+                    <X className="w-3.5 h-3.5 stroke-[2.5] pointer-events-none" />
                   </button>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Order Month &amp; Year
-                    </label>
+                    <div className="flex items-center justify-between mb-1.5 pr-8">
+                      <label className="block text-xs font-semibold text-slate-700">
+                        Order Month &amp; Year
+                      </label>
+                      {filterMonthYear && (
+                        <button
+                          type="button"
+                          onClick={handleResetFilter}
+                          className="text-[10px] text-blue-600 hover:text-blue-800 hover:underline font-semibold cursor-pointer"
+                          title="Reset filter selection"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
                     <div className="relative">
                       <select
                         value={filterMonthYear}
