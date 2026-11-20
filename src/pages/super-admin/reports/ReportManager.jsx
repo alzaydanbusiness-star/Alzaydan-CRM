@@ -21,7 +21,8 @@ import {
   DollarSign,
   Activity,
   Calendar,
-  Sparkles
+  Sparkles,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
@@ -31,10 +32,14 @@ export default function ReportManager({ onBack }) {
   const [activeTab, setActiveTab] = useState('list'); // 'list' | 'analytics'
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Active Interactive Modals
+  // Active Running Report (Inline view matching Reference Image 1)
   const [activeRunningReport, setActiveRunningReport] = useState(null);
   const [activeEditingReport, setActiveEditingReport] = useState(null);
   const [activeCustomizingReport, setActiveCustomizingReport] = useState(null);
+
+  // Filter state for inline report runner
+  const [filterMonthYear, setFilterMonthYear] = useState('');
+  const [appliedFilterMonthYear, setAppliedFilterMonthYear] = useState('');
 
   // Live storage sync ticker to ensure real-time reactive updates
   const [syncTick, setSyncTick] = useState(0);
@@ -61,9 +66,28 @@ export default function ReportManager({ onBack }) {
   // 1. LIVE CRM DATA EXTRACTION & FALLBACK HEALING
   // =========================================================================
 
-  // Live Opportunities
+  // Live Opportunities (Including Tariq enquiry from Reference Image 1 & CTEQ#7539 tap)
   const liveOpportunities = useMemo(() => {
     const list = [
+      {
+        id: 'ref-1',
+        code: 'CTEQ#7893',
+        name: 'Enquiry',
+        opportunityTitle: 'Enquiry',
+        customer: 'tariq',
+        customerName: 'tariq',
+        owner: 'tariq',
+        opportunityOwner: 'tariq',
+        rawAmount: 1374.82,
+        amount: 'AED 1,374.82',
+        stage: 'Enquiry',
+        rating: 'WARM',
+        oppDate: '21-11-2026',
+        opportunityDate: '21-11-2026',
+        cost: 894.00,
+        costFormatted: 'AED 894.00',
+        grossProfit: 'AED 480.82'
+      },
       {
         id: 1,
         code: 'CTEQ#7539',
@@ -79,6 +103,9 @@ export default function ReportManager({ onBack }) {
         rating: 'HOT',
         oppDate: '16-11-2026',
         opportunityDate: '16-11-2026',
+        cost: 3500.00,
+        costFormatted: 'AED 3,500.00',
+        grossProfit: 'AED 1,750.00',
         products: [
           { id: 1, itemName: 'tap', itemCode: 'sd44', brand: 'll', quantity: 1, price: 2000, total: 2000 },
           { id: 2, itemName: 'glue', itemCode: 'fufu44', brand: 'lp', quantity: 1, price: 3000, total: 3000 }
@@ -98,7 +125,10 @@ export default function ReportManager({ onBack }) {
         stage: 'Negotiation',
         rating: 'WARM',
         oppDate: '10-11-2026',
-        opportunityDate: '10-11-2026'
+        opportunityDate: '10-11-2026',
+        cost: 120000.00,
+        costFormatted: 'AED 120,000.00',
+        grossProfit: 'AED 65,000.00'
       },
       {
         id: 3,
@@ -114,7 +144,10 @@ export default function ReportManager({ onBack }) {
         stage: 'Won',
         rating: 'HOT',
         oppDate: '05-11-2026',
-        opportunityDate: '05-11-2026'
+        opportunityDate: '05-11-2026',
+        cost: 260000.00,
+        costFormatted: 'AED 260,000.00',
+        grossProfit: 'AED 150,000.00'
       },
       {
         id: 4,
@@ -130,7 +163,10 @@ export default function ReportManager({ onBack }) {
         stage: 'Won',
         rating: 'HOT',
         oppDate: '01-11-2026',
-        opportunityDate: '01-11-2026'
+        opportunityDate: '01-11-2026',
+        cost: 155000.00,
+        costFormatted: 'AED 155,000.00',
+        grossProfit: 'AED 85,000.00'
       }
     ];
 
@@ -450,21 +486,38 @@ export default function ReportManager({ onBack }) {
   // =========================================================================
   const getLiveReportPayload = (reportId) => {
     switch (reportId) {
-      // 1. Opportunity Closing
+      // 1. Opportunity Closing (Matching Reference Image 1 Exactly)
       case 1: {
-        const columns = ['Opportunity Ref', 'Title / Scope', 'Customer', 'Assigned Owner', 'Stage', 'Deal Value (AED)', 'Status'];
-        const rows = liveOpportunities.map((opp) => {
+        const columns = [
+          'SL.No',
+          'Opportunity Closed Date',
+          'Opportunity Owner',
+          'Opportunity Title',
+          'Opportunity Number',
+          'Opportunity Amount (AED)',
+          'Stage',
+          'Opportunity Cost (AED)',
+          'Gross Profit (GP)'
+        ];
+
+        const rows = liveOpportunities.map((opp, idx) => {
           const val = parseFloat(String(opp.rawAmount ?? opp.amount ?? 5250).replace(/[^0-9.]/g, '')) || 5250;
+          const costVal = parseFloat(String(opp.cost ?? val * 0.65).replace(/[^0-9.]/g, '')) || val * 0.65;
+          const gpVal = val - costVal;
+          const gpPct = ((gpVal / val) * 100).toFixed(1);
           return [
-            opp.code || 'CTEQ#7539',
-            opp.name || opp.opportunityTitle || 'tap',
-            opp.customer || opp.customerName || 'hai',
+            idx + 1,
+            opp.oppDate || opp.opportunityDate || '16-11-2026',
             opp.owner || opp.opportunityOwner || 'muhammed shibil',
+            opp.name || opp.opportunityTitle || 'tap',
+            opp.code || 'CTEQ#7539',
+            `AED ${val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
             opp.stage || 'Enquiry',
-            `AED ${val.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-            (opp.stage || '').toLowerCase() === 'won' ? 'Won & Closed' : 'In Pipeline'
+            `AED ${costVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            `AED ${gpVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${gpPct}%)`
           ];
         });
+
         const total = liveOpportunities.reduce((acc, o) => {
           return acc + (parseFloat(String(o.rawAmount ?? o.amount ?? 5250).replace(/[^0-9.]/g, '')) || 5250);
         }, 0);
@@ -473,42 +526,63 @@ export default function ReportManager({ onBack }) {
 
       // 2. Services Master
       case 2: {
-        const columns = ['Service Code', 'Service Description', 'Category', 'Unit', 'Standard Rate (AED)', 'Status'];
+        const columns = ['SL.No', 'Service Code', 'Service Description', 'Category', 'Unit', 'Standard Rate (AED)', 'Status'];
         const rows = [
-          ['SRV-HVAC-01', 'Commercial HVAC Retrofit & Chiller Overhaul', 'Installation & Retrofit', 'Lump Sum', 'AED 85,000.00', 'Active Service'],
-          ['SRV-AMC-02', 'Annual Maintenance Contract (AMC)', 'Maintenance & AMC', 'Per Year', 'AED 45,000.00', 'Active Service'],
-          ['SRV-VRF-03', 'VRF / VRV System Installation & Commissioning', 'HVAC Engineering', 'Per Unit', 'AED 28,500.00', 'Active Service'],
-          ['SRV-DCT-04', 'Ductwork & Clean Air Ventilation Overhaul', 'Ducting & Airflow', 'Per Meter', 'AED 12,000.00', 'Active Service'],
-          ['SRV-CLN-05', 'Cleanroom AHU Air Handling Unit Commissioning', 'Industrial Filtration', 'Project Work', 'AED 65,000.00', 'Active Service']
+          [1, 'SRV-HVAC-01', 'Commercial HVAC Retrofit & Chiller Overhaul', 'Installation & Retrofit', 'Lump Sum', 'AED 85,000.00', 'Active Service'],
+          [2, 'SRV-AMC-02', 'Annual Maintenance Contract (AMC)', 'Maintenance & AMC', 'Per Year', 'AED 45,000.00', 'Active Service'],
+          [3, 'SRV-VRF-03', 'VRF / VRV System Installation & Commissioning', 'HVAC Engineering', 'Per Unit', 'AED 28,500.00', 'Active Service'],
+          [4, 'SRV-DCT-04', 'Ductwork & Clean Air Ventilation Overhaul', 'Ducting & Airflow', 'Per Meter', 'AED 12,000.00', 'Active Service'],
+          [5, 'SRV-CLN-05', 'Cleanroom AHU Air Handling Unit Commissioning', 'Industrial Filtration', 'Project Work', 'AED 65,000.00', 'Active Service']
         ];
         return { columns, rows, totalValuation: 'AED 235,500.00' };
       }
 
       // 3. Product Master Listing
       case 3: {
-        const columns = ['Item Code', 'Item Description', 'Brand / Spec', 'Category', 'Store / Warehouse', 'Unit Price (AED)', 'Stock Qty'];
+        const columns = [
+          'SL.No',
+          'Item Code',
+          'Item Description',
+          'Brand / Spec',
+          'Category',
+          'Store / Warehouse',
+          'Unit Price (AED)',
+          'Stock Qty',
+          'Status'
+        ];
         const rows = [
-          ['sd44', 'tap', 'll', 'Fittings & Commercial Valves', 'JAFZA Warehouse 4', 'AED 2,000.00', '24 Pcs (Available)'],
-          ['fufu44', 'glue', 'lp', 'Industrial Adhesives & Sealants', 'JAFZA Warehouse 4', 'AED 3,000.00', '50 Pcs (Available)'],
-          ['CHL-120TR', 'Industrial Screw Chiller R134a 120TR', 'York / Carrier', 'Heavy Refrigeration', 'Central Yard Dubai', 'AED 185,000.00', '4 Units (Live)'],
-          ['AHU-5000', 'Double Skin Air Handling Unit 5000 CFM', 'Al Zaydan International', 'Air Handling', 'JAFZA One Warehouse', 'AED 42,000.00', '8 Units (Live)'],
-          ['CMP-30HP', 'Semi-Hermetic Chiller Compressor 30HP', 'Bitzer / Copeland', 'Spare Parts & Compressors', 'JAFZA Warehouse 4', 'AED 16,500.00', '15 Units (Live)']
+          [1, 'sd44', 'tap', 'll', 'Fittings & Commercial Valves', 'JAFZA Warehouse 4', 'AED 2,000.00', '24 Pcs', 'Available'],
+          [2, 'fufu44', 'glue', 'lp', 'Industrial Adhesives & Sealants', 'JAFZA Warehouse 4', 'AED 3,000.00', '50 Pcs', 'Available'],
+          [3, 'CHL-120TR', 'Industrial Screw Chiller R134a 120TR', 'York / Carrier', 'Heavy Refrigeration', 'Central Yard Dubai', 'AED 185,000.00', '4 Units', 'Live Stock'],
+          [4, 'AHU-5000', 'Double Skin Air Handling Unit 5000 CFM', 'Al Zaydan International', 'Air Handling', 'JAFZA One Warehouse', 'AED 42,000.00', '8 Units', 'Live Stock'],
+          [5, 'CMP-30HP', 'Semi-Hermetic Chiller Compressor 30HP', 'Bitzer / Copeland', 'Spare Parts & Compressors', 'JAFZA Warehouse 4', 'AED 16,500.00', '15 Units', 'Live Stock']
         ];
         return { columns, rows, totalValuation: 'AED 1,281,500.00' };
       }
 
       // 4. Sales Performance
       case 4: {
-        const columns = ['Order Ref', 'Customer', 'Scope / Opportunity', 'Owner', 'Net Subtotal (AED)', '5% VAT (AED)', 'Total Value (AED)', 'Order Status'];
-        const rows = liveOrders.map((ord) => {
+        const columns = [
+          'SL.No',
+          'Order Closed Date',
+          'Order Owner',
+          'Order Title',
+          'Order Number',
+          'Net Amount (AED)',
+          '5% VAT (AED)',
+          'Total Amount (AED)',
+          'Order Status'
+        ];
+        const rows = liveOrders.map((ord, idx) => {
           const raw = parseFloat(String(ord.rawAmount ?? ord.amount ?? 5250).replace(/[^0-9.]/g, '')) || 5250;
           const vat = (raw * 5) / 100;
           const tot = raw + vat;
           return [
-            ord.orderNo || ord.orderNumber || 'CTSO#3954',
-            ord.customer || ord.customerName || 'hai',
-            ord.orderTitle || 'tap',
+            idx + 1,
+            ord.orderDate || '16-11-2026',
             ord.orderOwner || 'shemin',
+            ord.orderTitle || 'tap',
+            ord.orderNo || ord.orderNumber || 'CTSO#3954',
             `AED ${raw.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
             `AED ${vat.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
             `AED ${tot.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
@@ -524,92 +598,92 @@ export default function ReportManager({ onBack }) {
 
       // 5. Campaign
       case 5: {
-        const columns = ['Campaign Name', 'Source Channel', 'Total Leads', 'Converted Deals', 'Pipeline Revenue (AED)', 'Attribution'];
+        const columns = ['SL.No', 'Campaign Name', 'Source Channel', 'Total Leads', 'Converted Deals', 'Pipeline Revenue (AED)', 'Attribution Status'];
         const rows = [
-          ['Direct Inbound', 'Direct Client Walk-in / Corporate Web', '14 Leads', '4 Deals', 'AED 540,512.50', 'Active Conversion'],
-          ['Google Ads Industrial HVAC', 'Search & Display UAE / GCC', '19 Leads', '6 Deals', 'AED 890,000.00', 'High ROI'],
-          ['Big 5 Dubai Expo 2026', 'Trade Exhibition & Industry Summit', '28 Leads', '8 Deals', 'AED 1,240,000.00', 'Top Performer'],
-          ['Sharjah Industrial Directory', 'Industrial Directory & Freezone Portal', '8 Leads', '2 Deals', 'AED 175,000.00', 'Active']
+          [1, 'Direct Inbound', 'Direct Client Walk-in / Corporate Web', '14 Leads', '4 Deals', 'AED 540,512.50', 'Active Conversion'],
+          [2, 'Google Ads Industrial HVAC', 'Search & Display UAE / GCC', '19 Leads', '6 Deals', 'AED 890,000.00', 'High ROI'],
+          [3, 'Big 5 Dubai Expo 2026', 'Trade Exhibition & Industry Summit', '28 Leads', '8 Deals', 'AED 1,240,000.00', 'Top Performer'],
+          [4, 'Sharjah Industrial Directory', 'Industrial Directory & Freezone Portal', '8 Leads', '2 Deals', 'AED 175,000.00', 'Active']
         ];
         return { columns, rows, totalValuation: 'AED 2,845,512.50' };
       }
 
       // 6. Salesman
       case 6: {
-        const columns = ['Executive Name', 'Role / Title', 'Assigned Deals', 'Closed Sales (AED)', 'Target Quota (AED)', 'Attainment %', 'Status'];
+        const columns = ['SL.No', 'Executive Name', 'Role / Title', 'Assigned Deals', 'Closed Sales (AED)', 'Target Quota (AED)', 'Attainment %', 'Status'];
         const rows = [
-          ['Muhammed Shibil', 'Sales Executive', '8 Deals', 'AED 1,120,512.50', 'AED 1,200,000.00', '93.4%', 'Top Performer'],
-          ['Shemin', 'Sales Executive', '6 Deals', 'AED 845,000.00', 'AED 1,000,000.00', '84.5%', 'On Target'],
-          ['Muhammed Riswan', 'Senior HVAC Engineer', '5 Deals', 'AED 920,000.00', 'AED 1,000,000.00', '92.0%', 'Exceeding Quota'],
-          ['Super Admin', 'Executive Director', '3 Deals', 'AED 640,000.00', 'AED 700,000.00', '91.4%', 'Managing Key Accounts']
+          [1, 'Muhammed Shibil', 'Sales Executive', '8 Deals', 'AED 1,120,512.50', 'AED 1,200,000.00', '93.4%', 'Top Performer'],
+          [2, 'Shemin', 'Sales Executive', '6 Deals', 'AED 845,000.00', 'AED 1,000,000.00', '84.5%', 'On Target'],
+          [3, 'Muhammed Riswan', 'Senior HVAC Engineer', '5 Deals', 'AED 920,000.00', 'AED 1,000,000.00', '92.0%', 'Exceeding Quota'],
+          [4, 'Super Admin', 'Executive Director', '3 Deals', 'AED 640,000.00', 'AED 700,000.00', '91.4%', 'Managing Key Accounts']
         ];
         return { columns, rows, totalValuation: 'AED 3,525,512.50' };
       }
 
       // 7. Aging Report
       case 7: {
-        const columns = ['Invoice / Ref', 'Customer', 'Issue Date', 'Due Date', 'Invoice Value (AED)', 'Collected (AED)', 'Outstanding Balance (AED)', 'Aging Bracket'];
+        const columns = ['SL.No', 'Invoice / Ref', 'Customer Name', 'Issue Date', 'Due Date', 'Invoice Value (AED)', 'Collected (AED)', 'Outstanding Balance (AED)', 'Aging Bracket'];
         const rows = [
-          ['CTTI#3105', 'hai', '16-11-2026', '16-12-2026', 'AED 5,512.50', 'AED 0.00', 'AED 5,512.50', '0 - 30 Days (Current)'],
-          ['CTTI#3098', 'Gulf Logistics Hub FZE', '15-10-2026', '15-11-2026', 'AED 240,000.00', 'AED 180,000.00', 'AED 60,000.00', '31 - 60 Days'],
-          ['CTTI#3084', 'Emirates Steel Arkan', '10-09-2026', '10-10-2026', 'AED 140,000.00', 'AED 140,000.00', 'AED 0.00', 'Fully Settled'],
-          ['CTTI#3065', 'Elite Solutions Freezone', '20-08-2026', '20-09-2026', 'AED 95,000.00', 'AED 50,000.00', 'AED 45,000.00', '61 - 90 Days']
+          [1, 'CTTI#3105', 'hai', '16-11-2026', '16-12-2026', 'AED 5,512.50', 'AED 0.00', 'AED 5,512.50', '0 - 30 Days (Current)'],
+          [2, 'CTTI#3098', 'Gulf Logistics Hub FZE', '15-10-2026', '15-11-2026', 'AED 240,000.00', 'AED 180,000.00', 'AED 60,000.00', '31 - 60 Days'],
+          [3, 'CTTI#3084', 'Emirates Steel Arkan', '10-09-2026', '10-10-2026', 'AED 140,000.00', 'AED 140,000.00', 'AED 0.00', 'Fully Settled'],
+          [4, 'CTTI#3065', 'Elite Solutions Freezone', '20-08-2026', '20-09-2026', 'AED 95,000.00', 'AED 50,000.00', 'AED 45,000.00', '61 - 90 Days']
         ];
         return { columns, rows, totalValuation: 'AED 110,512.50 Outstanding' };
       }
 
       // 8. Customer Statement
       case 8: {
-        const columns = ['Customer Name', 'Contact Person', 'Location', 'Orders Count', 'Invoiced Value (AED)', 'Payments Received (AED)', 'Balance Due (AED)', 'Account Status'];
+        const columns = ['SL.No', 'Customer Name', 'Contact Person', 'Location', 'Orders Count', 'Invoiced Value (AED)', 'Payments Received (AED)', 'Balance Due (AED)', 'Account Status'];
         const rows = [
-          ['hai', 'Procurement Department', 'Dubai / UAE', '1 Order (tap)', 'AED 5,512.50', 'AED 0.00', 'AED 5,512.50', 'Active Account'],
-          ['Gulf Logistics Hub FZE', 'Eng. Tariq Mansoor', 'JAFZA, Dubai', '3 Orders', 'AED 580,000.00', 'AED 520,000.00', 'AED 60,000.00', 'Good Standing'],
-          ['Emirates Steel Arkan', 'Sarah Al-Mansoor', 'ICAD, Abu Dhabi', '2 Orders', 'AED 380,000.00', 'AED 380,000.00', 'AED 0.00', 'Zero Balance'],
-          ['Al Noor Trading LLC', 'Khalid Bin Walid', 'Sharjah Industrial', '4 Orders', 'AED 240,000.00', 'AED 240,000.00', 'AED 0.00', 'Zero Balance'],
-          ['Elite Solutions Freezone', 'Omar Al-Hassan', 'Dubai Silicon Oasis', '2 Orders', 'AED 185,000.00', 'AED 140,000.00', 'AED 45,000.00', 'Pending Due']
+          [1, 'hai', 'Procurement Department', 'Dubai / UAE', '1 Order (tap)', 'AED 5,512.50', 'AED 0.00', 'AED 5,512.50', 'Active Account'],
+          [2, 'Gulf Logistics Hub FZE', 'Eng. Tariq Mansoor', 'JAFZA, Dubai', '3 Orders', 'AED 580,000.00', 'AED 520,000.00', 'AED 60,000.00', 'Good Standing'],
+          [3, 'Emirates Steel Arkan', 'Sarah Al-Mansoor', 'ICAD, Abu Dhabi', '2 Orders', 'AED 380,000.00', 'AED 380,000.00', 'AED 0.00', 'Zero Balance'],
+          [4, 'Al Noor Trading LLC', 'Khalid Bin Walid', 'Sharjah Industrial', '4 Orders', 'AED 240,000.00', 'AED 240,000.00', 'AED 0.00', 'Zero Balance'],
+          [5, 'Elite Solutions Freezone', 'Omar Al-Hassan', 'Dubai Silicon Oasis', '2 Orders', 'AED 185,000.00', 'AED 140,000.00', 'AED 45,000.00', 'Pending Due']
         ];
         return { columns, rows, totalValuation: 'AED 110,512.50 Net Receivables' };
       }
 
       // 9. Invoice And Receipt Report
       case 9: {
-        const columns = ['Document No', 'Doc Type', 'Customer', 'Date', 'TRN Ref', 'Net Amount (AED)', '5% UAE VAT (AED)', 'Gross Total (AED)', 'Settlement'];
+        const columns = ['SL.No', 'Document No', 'Doc Type', 'Customer', 'Date', 'TRN Ref', 'Net Amount (AED)', '5% UAE VAT (AED)', 'Gross Total (AED)', 'Settlement'];
         const rows = [
-          ['CTTI#3105', 'Tax Invoice', 'hai', '16-11-2026', '100 234 567 800 003', 'AED 5,250.00', 'AED 262.50', 'AED 5,512.50', 'Issued & Sent'],
-          ['CTR#2104', 'Payment Receipt', 'Gulf Logistics Hub FZE', '18-11-2026', 'Bank Transfer', 'AED 180,000.00', 'AED 9,000.00', 'AED 189,000.00', 'Cleared'],
-          ['CTTI#3098', 'Tax Invoice', 'Emirates Steel Arkan', '12-11-2026', '100 234 567 800 003', 'AED 140,000.00', 'AED 7,000.00', 'AED 147,000.00', 'Settled'],
-          ['CTR#2103', 'Payment Receipt', 'Al Noor Trading LLC', '05-11-2026', 'Corporate Cheque', 'AED 240,000.00', 'AED 12,000.00', 'AED 252,000.00', 'Cleared']
+          [1, 'CTTI#3105', 'Tax Invoice', 'hai', '16-11-2026', '100 234 567 800 003', 'AED 5,250.00', 'AED 262.50', 'AED 5,512.50', 'Issued & Sent'],
+          [2, 'CTR#2104', 'Payment Receipt', 'Gulf Logistics Hub FZE', '18-11-2026', 'Bank Transfer', 'AED 180,000.00', 'AED 9,000.00', 'AED 189,000.00', 'Cleared'],
+          [3, 'CTTI#3098', 'Tax Invoice', 'Emirates Steel Arkan', '12-11-2026', '100 234 567 800 003', 'AED 140,000.00', 'AED 7,000.00', 'AED 147,000.00', 'Settled'],
+          [4, 'CTR#2103', 'Payment Receipt', 'Al Noor Trading LLC', '05-11-2026', 'Corporate Cheque', 'AED 240,000.00', 'AED 12,000.00', 'AED 252,000.00', 'Cleared']
         ];
         return { columns, rows, totalValuation: 'AED 643,512.50 Reconciled' };
       }
 
       // 10. Inventory
       case 10: {
-        const columns = ['Stock Code', 'Product / Material', 'Warehouse Location', 'Category', 'Unit', 'Qty In Stock', 'Reorder Level', 'Unit Cost (AED)', 'Asset Value (AED)'];
+        const columns = ['SL.No', 'Stock Code', 'Product / Material', 'Warehouse Location', 'Category', 'Unit', 'Qty In Stock', 'Reorder Level', 'Unit Cost (AED)', 'Asset Value (AED)'];
         const rows = [
-          ['sd44', 'tap', 'JAFZA Warehouse 4', 'Fittings & Commercial Valves', 'Pcs', '24', '10', 'AED 1,500.00', 'AED 36,000.00'],
-          ['fufu44', 'glue', 'JAFZA Warehouse 4', 'Industrial Adhesives & Sealants', 'Pcs', '50', '15', 'AED 2,200.00', 'AED 110,000.00'],
-          ['CHL-120TR', 'Screw Chiller 120TR R134a', 'Central Yard Dubai', 'Heavy Refrigeration', 'Units', '4', '1', 'AED 145,000.00', 'AED 580,000.00'],
-          ['AHU-5000', 'Air Handling Unit 5000 CFM', 'JAFZA Warehouse 4', 'Air Handling', 'Units', '8', '2', 'AED 32,000.00', 'AED 256,000.00'],
-          ['CMP-30HP', 'Chiller Compressor 30HP', 'JAFZA Warehouse 4', 'Compressors', 'Units', '15', '4', 'AED 12,000.00', 'AED 180,000.00']
+          [1, 'sd44', 'tap', 'JAFZA Warehouse 4', 'Fittings & Commercial Valves', 'Pcs', '24', '10', 'AED 1,500.00', 'AED 36,000.00'],
+          [2, 'fufu44', 'glue', 'JAFZA Warehouse 4', 'Industrial Adhesives & Sealants', 'Pcs', '50', '15', 'AED 2,200.00', 'AED 110,000.00'],
+          [3, 'CHL-120TR', 'Screw Chiller 120TR R134a', 'Central Yard Dubai', 'Heavy Refrigeration', 'Units', '4', '1', 'AED 145,000.00', 'AED 580,000.00'],
+          [4, 'AHU-5000', 'Air Handling Unit 5000 CFM', 'JAFZA Warehouse 4', 'Air Handling', 'Units', '8', '2', 'AED 32,000.00', 'AED 256,000.00'],
+          [5, 'CMP-30HP', 'Chiller Compressor 30HP', 'JAFZA Warehouse 4', 'Compressors', 'Units', '15', '4', 'AED 12,000.00', 'AED 180,000.00']
         ];
         return { columns, rows, totalValuation: 'AED 1,162,000.00 Asset Value' };
       }
 
       // 11. WhatsApp Number
       case 11: {
-        const columns = ['Customer / Contact', 'Phone / WhatsApp', 'Channel', 'Last Message / Activity', 'Timestamp', 'Status'];
+        const columns = ['SL.No', 'Customer / Contact', 'Phone / WhatsApp', 'Channel', 'Last Message / Activity', 'Timestamp', 'Status'];
         const rows = [
-          ['hai', '+971 58 5262058', 'WhatsApp Official', 'Quotation CTSQ#4340 shared with customer', 'Today, 02:42 PM', 'Delivered & Read'],
-          ['Mr. Shemeem', '+971 56 7890987', 'WhatsApp Official', 'Order CTSO#3954 details confirmed', 'Today, 03:12 PM', 'Read'],
-          ['Eng. Tariq Mansoor', '+971 50 123 4567', 'WhatsApp Business', 'HVAC maintenance contract scope sent', 'Yesterday, 04:15 PM', 'Delivered'],
-          ['Sarah Al-Mansoor', '+971 2 550 8800', 'WhatsApp Official', 'Chiller technical submittal approved', '15-11-2026', 'Read']
+          [1, 'hai', '+971 58 5262058', 'WhatsApp Official', 'Quotation CTSQ#4340 shared with customer', 'Today, 02:42 PM', 'Delivered & Read'],
+          [2, 'Mr. Shemeem', '+971 56 7890987', 'WhatsApp Official', 'Order CTSO#3954 details confirmed', 'Today, 03:12 PM', 'Read'],
+          [3, 'Eng. Tariq Mansoor', '+971 50 123 4567', 'WhatsApp Business', 'HVAC maintenance contract scope sent', 'Yesterday, 04:15 PM', 'Delivered'],
+          [4, 'Sarah Al-Mansoor', '+971 2 550 8800', 'WhatsApp Official', 'Chiller technical submittal approved', '15-11-2026', 'Read']
         ];
         return { columns, rows, totalValuation: '4 Active Conversations' };
       }
 
       default:
-        return { columns: ['Ref', 'Entity', 'Status'], rows: [], totalValuation: 'AED 0.00' };
+        return { columns: ['SL.No', 'Ref', 'Entity', 'Status'], rows: [], totalValuation: 'AED 0.00' };
     }
   };
 
@@ -622,15 +696,47 @@ export default function ReportManager({ onBack }) {
     );
   }, [reports, searchQuery]);
 
-  // Report execution handler
+  // Report execution handler - Opens inline report view matching Reference Image 1
   const handleRunReport = (report) => {
     const payload = getLiveReportPayload(report.id);
+    setFilterMonthYear('');
+    setAppliedFilterMonthYear('');
     setActiveRunningReport({
       ...report,
       payload
     });
-    toast.success(`Running live "${report.title}" report from Al Zaydan CRM database...`);
+    toast.success(`Opening live "${report.title}" report...`);
   };
+
+  const handleResetFilter = () => {
+    setFilterMonthYear('');
+    setAppliedFilterMonthYear('');
+    toast.info('Filters reset to default');
+  };
+
+  const handleApplyFilter = () => {
+    setAppliedFilterMonthYear(filterMonthYear);
+    if (filterMonthYear && filterMonthYear !== 'all') {
+      toast.success(`Filter applied: ${filterMonthYear}`);
+    } else {
+      toast.info('Showing all available records');
+    }
+  };
+
+  // Dynamically filtered rows based on month selection
+  const displayedRows = useMemo(() => {
+    if (!activeRunningReport || !activeRunningReport.payload) return [];
+    const rows = activeRunningReport.payload.rows;
+    if (!appliedFilterMonthYear || appliedFilterMonthYear === 'all') return rows;
+
+    return rows.filter((row) => {
+      return row.some((cell) => {
+        const str = String(cell).toLowerCase();
+        const f = appliedFilterMonthYear.toLowerCase();
+        return str.includes(f) || (f === '11-2026' && (str.includes('11-2026') || str.includes('nov')));
+      });
+    });
+  }, [activeRunningReport, appliedFilterMonthYear]);
 
   const handleSaveEdit = (e) => {
     e.preventDefault();
@@ -642,7 +748,11 @@ export default function ReportManager({ onBack }) {
 
   // Export REAL LIVE CSV Data
   const handleExportCSV = (reportTitle, payload) => {
-    if (!payload || !payload.columns || !payload.rows) return;
+    const rowsToExport = displayedRows.length > 0 ? displayedRows : (payload?.rows || []);
+    if (!payload || !payload.columns || rowsToExport.length === 0) {
+      toast.error('No rows to export');
+      return;
+    }
 
     let csvContent = 'data:text/csv;charset=utf-8,';
     csvContent += `"Company: AL ZAYDAN INTERNATIONAL FZE"\n`;
@@ -654,7 +764,7 @@ export default function ReportManager({ onBack }) {
     csvContent += payload.columns.map((c) => `"${c}"`).join(',') + '\n';
 
     // Rows
-    payload.rows.forEach((row) => {
+    rowsToExport.forEach((row) => {
       csvContent += row.map((cell) => `"${String(cell || '').replace(/"/g, '""')}"`).join(',') + '\n';
     });
 
@@ -678,7 +788,7 @@ export default function ReportManager({ onBack }) {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={onBack || (() => toast.info('Navigating back'))}
+            onClick={activeRunningReport ? () => setActiveRunningReport(null) : (onBack || (() => toast.info('Navigating back')))}
             className="w-8 h-8 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer"
             title="Go Back"
           >
@@ -701,9 +811,12 @@ export default function ReportManager({ onBack }) {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setActiveTab('list')}
+            onClick={() => {
+              setActiveTab('list');
+              setActiveRunningReport(null);
+            }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-              activeTab === 'list'
+              activeTab === 'list' && !activeRunningReport
                 ? 'bg-[#011635] text-white shadow-xs'
                 : 'bg-white text-slate-700 hover:text-slate-900 border border-slate-200 hover:bg-slate-50'
             }`}
@@ -712,7 +825,10 @@ export default function ReportManager({ onBack }) {
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab('analytics')}
+            onClick={() => {
+              setActiveTab('analytics');
+              setActiveRunningReport(null);
+            }}
             className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
               activeTab === 'analytics'
                 ? 'bg-[#011635] text-white shadow-xs'
@@ -725,108 +841,258 @@ export default function ReportManager({ onBack }) {
       </div>
 
       {/* ============================================================== */}
-      {/* 2. TAB 1: REPORT LIST VIEW (Matching Reference Image Rows)     */}
+      {/* 2. TAB 1: ACTIVE INLINE REPORT RUNNER OR REPORT LIST VIEW       */}
       {/* ============================================================== */}
       {activeTab === 'list' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          {/* Top Search Bar */}
-          <div className="relative border-b border-slate-100 p-3 sm:p-4">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search report..."
-              className="w-full h-10 pl-3 pr-10 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-[#011635] focus:ring-2 focus:ring-blue-100 transition-all"
-            />
-            <Search className="w-4 h-4 text-slate-400 absolute right-6 sm:right-7 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
-
-          {/* Report Listing Table / Rows */}
-          <div className="divide-y divide-slate-100">
-            {filteredReports.length === 0 ? (
-              <div className="py-16 text-center text-slate-400 space-y-2">
-                <FileText className="w-10 h-10 mx-auto text-slate-300" />
-                <p className="text-sm font-semibold text-slate-600">No reports found</p>
-                <p className="text-xs text-slate-400">Try adjusting your search query</p>
+        activeRunningReport && activeRunningReport.payload ? (
+          /* ========================================================== */
+          /* INLINE REPORT VIEW (Matching Reference Image 1 Exactly)    */
+          /* ========================================================== */
+          <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden animate-in fade-in duration-150">
+            {/* Top Bar: [Doc Icon] [Report Name] Report ... [Red X Button] */}
+            <div className="px-4 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-slate-500" />
+                <h2 className="text-sm font-semibold text-slate-800 tracking-tight">
+                  {activeRunningReport.title} Report
+                </h2>
               </div>
-            ) : (
-              filteredReports.map((report) => {
-                const payload = getLiveReportPayload(report.id);
-                const recordCount = payload.rows.length;
+              <button
+                type="button"
+                onClick={() => setActiveRunningReport(null)}
+                className="w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-2xs"
+                title="Close Report View"
+              >
+                <X className="w-3.5 h-3.5 stroke-[2.5]" />
+              </button>
+            </div>
 
-                return (
-                  <div
-                    key={report.id}
-                    className="p-4 sm:px-6 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors group"
+            {/* Main Content: 2-Column Layout */}
+            <div className="p-4 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+              {/* Left Column: Filter Sidebar */}
+              <div className="lg:col-span-3">
+                <div className="bg-white border border-slate-200 rounded-lg p-4 relative shadow-2xs space-y-3.5">
+                  {/* Top-right red [X] button to clear filter */}
+                  <button
+                    type="button"
+                    onClick={handleResetFilter}
+                    className="absolute top-2.5 right-2.5 w-5 h-5 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-2xs"
+                    title="Reset Filter"
                   >
-                    {/* Left: Serial Number + Title + Description + Live Count Badge */}
-                    <div className="flex items-start sm:items-center gap-4 flex-1">
-                      <span className="w-6 font-bold text-xs text-slate-800 shrink-0">
-                        {report.id}
-                      </span>
+                    <X className="w-3 h-3 stroke-[2.5]" />
+                  </button>
 
-                      <div className="space-y-0.5 flex-1 max-w-3xl">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => handleRunReport(report)}
-                            className="font-bold text-xs sm:text-[13px] text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left tracking-tight"
-                          >
-                            {report.title}
-                          </button>
-                          <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                            {recordCount} {recordCount === 1 ? 'record' : 'records'}
-                          </span>
-                        </div>
-                        <p className="text-[11px] sm:text-xs text-slate-500 font-normal leading-relaxed">
-                          {report.description}
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Right: Action Buttons (# Customize, Edit, Run) */}
-                    <div className="flex items-center gap-1.5 self-end md:self-center shrink-0">
-                      {/* Optional # Customize Button (Orange/Amber) */}
-                      {report.hasCustomize && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveCustomizingReport(report)}
-                          className="px-2.5 py-1 bg-[#F59E0B] hover:bg-[#D97706] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
-                          title="Customize Report Columns & Calculations"
-                        >
-                          <Sliders className="w-3 h-3" />
-                          <span>Customize</span>
-                        </button>
-                      )}
-
-                      {/* Edit Button (Sky Blue) */}
-                      <button
-                        type="button"
-                        onClick={() => setActiveEditingReport({ ...report })}
-                        className="px-2.5 py-1 bg-[#38BDF8] hover:bg-[#0284C7] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
-                        title="Edit Report Criteria"
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Order Month &amp; Year
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={filterMonthYear}
+                        onChange={(e) => setFilterMonthYear(e.target.value)}
+                        className="w-full h-8 px-2.5 pr-7 bg-white border border-slate-300 rounded text-xs text-slate-700 focus:outline-hidden focus:border-[#011635] appearance-none cursor-pointer"
                       >
-                        <Edit2 className="w-3 h-3" />
-                        <span>Edit</span>
-                      </button>
-
-                      {/* Run Button (Green) */}
-                      <button
-                        type="button"
-                        onClick={() => handleRunReport(report)}
-                        className="px-2.5 py-1 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
-                        title="Run Live Report"
-                      >
-                        <Play className="w-3 h-3 fill-current" />
-                        <span>Run</span>
-                      </button>
+                        <option value="">Select</option>
+                        <option value="11-2026">November 2026</option>
+                        <option value="10-2026">October 2026</option>
+                        <option value="09-2026">September 2026</option>
+                        <option value="08-2026">August 2026</option>
+                        <option value="all">All Month &amp; Year</option>
+                      </select>
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                     </div>
                   </div>
-                );
-              })
-            )}
+
+                  {/* Filter Action Buttons: [# Customize] and [🔍 Search] */}
+                  <div className="flex items-center gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCustomizingReport(activeRunningReport)}
+                      className="flex-1 py-1.5 px-2 bg-[#F59E0B] hover:bg-[#D97706] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
+                    >
+                      <Sliders className="w-3 h-3" />
+                      <span>Customize</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleApplyFilter}
+                      className="flex-1 py-1.5 px-2 bg-[#011635] hover:bg-[#07244A] text-white text-xs font-semibold rounded flex items-center justify-center gap-1 shadow-2xs transition cursor-pointer"
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>Search</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Table Header, Green Export Button, and Blue Thead Table */}
+              <div className="lg:col-span-9 space-y-2 overflow-hidden">
+                {/* Header row above table: [Report Title] and [📥 Export] */}
+                <div className="flex items-center justify-between pb-1">
+                  <h3 className="text-sm font-semibold text-slate-800">
+                    {activeRunningReport.title}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => handleExportCSV(activeRunningReport.title, activeRunningReport.payload)}
+                    className="px-3 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-semibold rounded flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export</span>
+                  </button>
+                </div>
+
+                {/* Table with bright corporate blue header (#0090C8) */}
+                <div className="border border-slate-200 rounded overflow-x-auto shadow-2xs">
+                  <table className="w-full text-left text-xs whitespace-nowrap">
+                    <thead className="bg-[#0090C8] text-white font-semibold text-[11px] sm:text-xs">
+                      <tr>
+                        {activeRunningReport.payload.columns.map((col, idx) => (
+                          <th
+                            key={idx}
+                            className="py-2.5 px-3 border-r border-[#0080B2] last:border-r-0 font-medium tracking-tight"
+                          >
+                            {col}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 bg-white text-slate-700">
+                      {displayedRows.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={activeRunningReport.payload.columns.length}
+                            className="py-10 text-center text-slate-400 text-xs"
+                          >
+                            No records found for the selected filter.
+                          </td>
+                        </tr>
+                      ) : (
+                        displayedRows.map((row, rIdx) => (
+                          <tr key={rIdx} className="hover:bg-sky-50/30 transition-colors">
+                            {row.map((cell, cIdx) => (
+                              <td
+                                key={cIdx}
+                                className={`py-2 px-3 border-r border-slate-100 last:border-r-0 text-xs ${
+                                  cIdx === 0 ? 'text-slate-600 font-medium text-center' : ''
+                                }`}
+                              >
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          /* ========================================================== */
+          /* DEFAULT REPORT LISTING (11 Reports)                        */
+          /* ========================================================== */
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
+            {/* Top Search Bar */}
+            <div className="relative border-b border-slate-100 p-3 sm:p-4">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search report..."
+                className="w-full h-10 pl-3 pr-10 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-[#011635] focus:ring-2 focus:ring-blue-100 transition-all"
+              />
+              <Search className="w-4 h-4 text-slate-400 absolute right-6 sm:right-7 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            {/* Report Listing Table / Rows */}
+            <div className="divide-y divide-slate-100">
+              {filteredReports.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 space-y-2">
+                  <FileText className="w-10 h-10 mx-auto text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-600">No reports found</p>
+                  <p className="text-xs text-slate-400">Try adjusting your search query</p>
+                </div>
+              ) : (
+                filteredReports.map((report) => {
+                  const payload = getLiveReportPayload(report.id);
+                  const recordCount = payload.rows.length;
+
+                  return (
+                    <div
+                      key={report.id}
+                      className="p-4 sm:px-6 sm:py-3.5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:bg-slate-50/70 transition-colors group"
+                    >
+                      {/* Left: Serial Number + Title + Description + Live Count Badge */}
+                      <div className="flex items-start sm:items-center gap-4 flex-1">
+                        <span className="w-6 font-bold text-xs text-slate-800 shrink-0">
+                          {report.id}
+                        </span>
+
+                        <div className="space-y-0.5 flex-1 max-w-3xl">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleRunReport(report)}
+                              className="font-bold text-xs sm:text-[13px] text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left tracking-tight"
+                            >
+                              {report.title}
+                            </button>
+                            <span className="px-2 py-0.2 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              {recordCount} {recordCount === 1 ? 'record' : 'records'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] sm:text-xs text-slate-500 font-normal leading-relaxed">
+                            {report.description}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Right: Action Buttons (# Customize, Edit, Run) */}
+                      <div className="flex items-center gap-1.5 self-end md:self-center shrink-0">
+                        {/* Optional # Customize Button (Orange/Amber) */}
+                        {report.hasCustomize && (
+                          <button
+                            type="button"
+                            onClick={() => setActiveCustomizingReport(report)}
+                            className="px-2.5 py-1 bg-[#F59E0B] hover:bg-[#D97706] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                            title="Customize Report Columns & Calculations"
+                          >
+                            <Sliders className="w-3 h-3" />
+                            <span>Customize</span>
+                          </button>
+                        )}
+
+                        {/* Edit Button (Sky Blue) */}
+                        <button
+                          type="button"
+                          onClick={() => setActiveEditingReport({ ...report })}
+                          className="px-2.5 py-1 bg-[#38BDF8] hover:bg-[#0284C7] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                          title="Edit Report Criteria"
+                        >
+                          <Edit2 className="w-3 h-3" />
+                          <span>Edit</span>
+                        </button>
+
+                        {/* Run Button (Green) */}
+                        <button
+                          type="button"
+                          onClick={() => handleRunReport(report)}
+                          className="px-2.5 py-1 bg-[#22C55E] hover:bg-[#16A34A] text-white text-[11px] font-bold rounded-md flex items-center gap-1 shadow-2xs hover:shadow-xs transition cursor-pointer"
+                          title="Run Live Report"
+                        >
+                          <Play className="w-3 h-3 fill-current" />
+                          <span>Run</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )
       )}
 
       {/* ============================================================== */}
@@ -943,164 +1209,7 @@ export default function ReportManager({ onBack }) {
       )}
 
       {/* ============================================================== */}
-      {/* 4. MODAL: RUN REPORT (Data View & CSV / PDF Export)             */}
-      {/* ============================================================== */}
-      {activeRunningReport && activeRunningReport.payload && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-5xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 bg-gradient-to-r from-[#011635] to-[#16477A] text-white flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center font-bold text-sm">
-                  <Play className="w-4 h-4 fill-current text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-sm tracking-tight text-white">
-                      {activeRunningReport.title}
-                    </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Live Data
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-blue-200 mt-0.5">
-                    {activeRunningReport.description}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleExportCSV(activeRunningReport.title, activeRunningReport.payload)}
-                  className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                  title="Export live table as CSV"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>CSV</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="px-3 py-1.5 rounded-lg bg-[#16477A] hover:bg-[#0f3459] text-white text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                  title="Print Report"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveRunningReport(null)}
-                  className="w-8 h-8 rounded-lg hover:bg-white/10 text-white/70 hover:text-white flex items-center justify-center cursor-pointer transition"
-                  title="Close Report"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              {/* Meta Pill Banner */}
-              <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div className="flex flex-wrap items-center gap-4 text-slate-600">
-                  <span><strong>Category:</strong> {activeRunningReport.category}</span>
-                  <span><strong>Period:</strong> {activeRunningReport.defaultDateRange}</span>
-                  <span><strong>Total Records:</strong> <strong className="text-slate-900">{activeRunningReport.payload.rows.length}</strong></span>
-                  <span><strong>Generated:</strong> {new Date().toLocaleDateString('en-GB')} {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                    <span>Real-time Sync Active</span>
-                  </span>
-                </div>
-              </div>
-
-              {/* Data Table Preview */}
-              <div className="border border-slate-200 rounded-xl overflow-x-auto max-h-[460px]">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 text-slate-700 font-bold uppercase text-[10px]">
-                    <tr>
-                      <th className="py-2.5 px-3 w-10 text-center">#</th>
-                      {activeRunningReport.payload.columns.map((col, idx) => (
-                        <th key={idx} className="py-2.5 px-3">
-                          {col}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {activeRunningReport.payload.rows.length === 0 ? (
-                      <tr>
-                        <td colSpan={activeRunningReport.payload.columns.length + 1} className="py-8 text-center text-slate-400">
-                          No live records available for this report criteria.
-                        </td>
-                      </tr>
-                    ) : (
-                      activeRunningReport.payload.rows.map((row, rowIdx) => (
-                        <tr key={rowIdx} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] font-bold">
-                            {String(rowIdx + 1).padStart(2, '0')}
-                          </td>
-                          {row.map((cell, cIdx) => (
-                            <td key={cIdx} className={`py-2.5 px-3 ${cIdx === 0 ? 'font-mono font-bold text-blue-700' : ''}`}>
-                              {String(cell).includes('AED') ? (
-                                <span className="font-mono font-bold text-slate-900">{cell}</span>
-                              ) : String(cell).includes('Active') || String(cell).includes('Won') || String(cell).includes('Approved') || String(cell).includes('Cleared') ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  {cell}
-                                </span>
-                              ) : String(cell).includes('Pending') || String(cell).includes('Negotiation') ? (
-                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                                  {cell}
-                                </span>
-                              ) : (
-                                cell
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                  {activeRunningReport.payload.totalValuation && (
-                    <tfoot className="bg-slate-50 border-t border-slate-200 font-bold text-slate-900 sticky bottom-0">
-                      <tr>
-                        <td colSpan={Math.max(1, activeRunningReport.payload.columns.length - 1)} className="py-2.5 px-3 text-right uppercase text-[11px] text-slate-600">
-                          Total Report Summary:
-                        </td>
-                        <td colSpan={2} className="py-2.5 px-3 text-right font-mono text-[#16477A] text-sm">
-                          {activeRunningReport.payload.totalValuation}
-                        </td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span className="flex items-center gap-1.5">
-                <AlZaydanCrest className="w-4 h-4 text-[#011635]" />
-                <span className="font-semibold text-slate-700">Al Zaydan International FZE Commercial Reporting</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setActiveRunningReport(null)}
-                className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 rounded-xl text-xs font-semibold text-slate-700 shadow-2xs transition cursor-pointer"
-              >
-                Close Preview
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* 5. MODAL: EDIT REPORT CRITERIA                                 */}
+      {/* 4. MODAL: EDIT REPORT CRITERIA                                 */}
       {/* ============================================================== */}
       {activeEditingReport && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
@@ -1199,7 +1308,7 @@ export default function ReportManager({ onBack }) {
       )}
 
       {/* ============================================================== */}
-      {/* 6. MODAL: # CUSTOMIZE REPORT (Columns & Formula Builder)       */}
+      {/* 5. MODAL: # CUSTOMIZE REPORT (Columns & Formula Builder)       */}
       {/* ============================================================== */}
       {activeCustomizingReport && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
