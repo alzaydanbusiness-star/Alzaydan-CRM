@@ -4,25 +4,44 @@ import {
   Filter,
   User,
   Layers,
-  ArrowUp
+  ArrowUp,
+  Target
 } from 'lucide-react';
+import { isSalesExecutive as checkIsSalesExecutive } from '../../../utils/userDirectory';
 
 export default function SummaryCards({
   onSelectMetric,
   employeesCount = 0,
   leadsCount = 0,
   customersCount = 0,
-  salesAmount = 0
+  salesAmount = 0,
+  opportunitiesCount = 0,
+  isSalesExecutive = false
 }) {
+  const isRep = isSalesExecutive || checkIsSalesExecutive();
+
   const cards = [
-    {
-      id: 'employees',
-      label: 'Total Employees',
-      value: String(employeesCount),
-      change: '0%',
-      icon: Users,
-      tab: 'Employees'
-    },
+    ...(isRep
+      ? [
+          {
+            id: 'opportunities',
+            label: 'Active Deals',
+            value: String(opportunitiesCount),
+            change: '0%',
+            icon: Target,
+            tab: 'Sales'
+          }
+        ]
+      : [
+          {
+            id: 'employees',
+            label: 'Total Employees',
+            value: String(employeesCount),
+            change: '0%',
+            icon: Users,
+            tab: 'Employees'
+          }
+        ]),
     {
       id: 'leads',
       label: 'Total Leads',

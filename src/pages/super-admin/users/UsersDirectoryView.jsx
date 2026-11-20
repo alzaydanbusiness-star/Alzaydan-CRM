@@ -29,7 +29,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStoredUsers } from '../../../utils/userDirectory';
+import { getStoredUsers, canManageUsers, isSalesExecutive, deleteStoredUser } from '../../../utils/userDirectory';
 
 // Clean raw input to extract national 9-digit UAE mobile (5XXXXXXXX)
 const cleanUAEMobileDigits = (val) => {
@@ -782,6 +782,8 @@ export default function UsersDirectoryView() {
 
   // Refresh handler
   const handleRefresh = () => {
+    const refreshed = getStoredUsers();
+    setUsers(refreshed);
     toast.success('Users Directory synchronized with latest server records');
   };
 
@@ -1281,9 +1283,18 @@ export default function UsersDirectoryView() {
       setActiveActionId(null);
       return;
     }
-    setUsers(users.filter((u) => u.id !== id));
+
+    if (target) {
+      deleteStoredUser(target.id, target.email, target.name);
+    }
+    const updated = users.filter((u) => u.id !== id);
+    setUsers(updated);
+    try {
+      localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updated));
+    } catch {}
+    window.dispatchEvent(new Event('alzaydan_user_updated'));
     setActiveActionId(null);
-    toast.success('User removed from directory');
+    toast.success(`User "${target?.name || 'Account'}" permanently removed.`);
   };
 
   const handleToggleStatus = (id) => {
@@ -1343,15 +1354,17 @@ export default function UsersDirectoryView() {
               <span>Refresh</span>
             </button>
 
-            {/* + + USER Button (Green Button Matching Reference Image) */}
-            <button
-              type="button"
-              onClick={() => setViewMode('create')}
-              className="px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ + USER</span>
-            </button>
+            {/* + + USER Button (Green Button Matching Reference Image - Admin & Managers Only) */}
+            {canManageUsers() && (
+              <button
+                type="button"
+                onClick={() => setViewMode('create')}
+                className="px-4 py-1.5 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold uppercase tracking-wider rounded-lg flex items-center gap-1.5 shadow-xs hover:shadow-sm transition-all cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+ + USER</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -1539,89 +1552,93 @@ export default function UsersDirectoryView() {
                       </span>
                     </td>
 
-                    {/* Actions Button (Teal Gear ⚙️ ▾) */}
+                    {/* Actions Button (Teal Gear ⚙️ ▾ - Admin & Managers Only) */}
                     <td className="py-3 px-4 text-center relative">
-                      <div className="relative inline-block text-left">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setActiveActionId(activeActionId === user.id ? null : user.id)
-                          }
-                          className="h-7 w-7 rounded-md bg-[#0F766E] hover:bg-[#115E59] text-white flex items-center justify-center shadow-2xs cursor-pointer transition-colors"
-                          title="Actions"
-                        >
-                          <Settings className="w-3.5 h-3.5" />
-                        </button>
+                      {canManageUsers() ? (
+                        <div className="relative inline-block text-left">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setActiveActionId(activeActionId === user.id ? null : user.id)
+                            }
+                            className="h-7 w-7 rounded-md bg-[#0F766E] hover:bg-[#115E59] text-white flex items-center justify-center shadow-2xs cursor-pointer transition-colors"
+                            title="Actions"
+                          >
+                            <Settings className="w-3.5 h-3.5" />
+                          </button>
 
-                        {/* Dropdown Menu */}
-                        {activeActionId === user.id && (
-                          <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 text-xs text-left animate-in fade-in zoom-in-95 duration-100">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleViewUserDetail(user);
-                              }}
-                              className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-blue-500" />
-                              <span>View User Details</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handleStartEditUser(user);
-                              }}
-                              className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <Edit2 className="w-3.5 h-3.5 text-slate-500" />
-                              <span>Edit User</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => {
-                                toast.info(`Password reset link sent to ${user.email}`);
-                                setActiveActionId(null);
-                              }}
-                              className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <KeyRound className="w-3.5 h-3.5 text-amber-500" />
-                              <span>Reset Password</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleToggleStatus(user.id)}
-                              className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
-                            >
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                              <span>
-                                {user.status === 'Active' ? 'Mark Inactive' : 'Mark Active'}
-                              </span>
-                            </button>
-
-                            <div className="my-1 border-t border-slate-100" />
-
-                            {(user.email && user.email.toLowerCase() === 'al@gmail.com') ||
-                            user.roleTier === 'super-admin' ||
-                            (user.role && user.role.toLowerCase().includes('super admin')) ? (
-                              <div className="px-3.5 py-1.5 text-[11px] text-slate-400 italic">
-                                Root CEO (Protected)
-                              </div>
-                            ) : (
+                          {/* Dropdown Menu */}
+                          {activeActionId === user.id && (
+                            <div className="absolute right-0 mt-1 w-44 bg-white rounded-xl shadow-lg border border-slate-200 py-1.5 z-30 text-xs text-left animate-in fade-in zoom-in-95 duration-100">
                               <button
                                 type="button"
-                                onClick={() => handleDeleteUser(user.id)}
-                                className="w-full px-3.5 py-1.5 text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
+                                onClick={() => {
+                                  handleViewUserDetail(user);
+                                }}
+                                className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
                               >
-                                <Trash2 className="w-3.5 h-3.5 text-red-500" />
-                                <span>Delete</span>
+                                <Eye className="w-3.5 h-3.5 text-blue-500" />
+                                <span>View User Details</span>
                               </button>
-                            )}
-                          </div>
-                        )}
-                      </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleStartEditUser(user);
+                                }}
+                                className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <Edit2 className="w-3.5 h-3.5 text-slate-500" />
+                                <span>Edit User</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  toast.info(`Password reset link sent to ${user.email}`);
+                                  setActiveActionId(null);
+                                }}
+                                className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <KeyRound className="w-3.5 h-3.5 text-amber-500" />
+                                <span>Reset Password</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleToggleStatus(user.id)}
+                                className="w-full px-3.5 py-1.5 text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                <span>
+                                  {user.status === 'Active' ? 'Mark Inactive' : 'Mark Active'}
+                                </span>
+                              </button>
+
+                              <div className="my-1 border-t border-slate-100" />
+
+                              {(user.email && user.email.toLowerCase() === 'al@gmail.com') ||
+                              user.roleTier === 'super-admin' ||
+                              (user.role && user.role.toLowerCase().includes('super admin')) ? (
+                                <div className="px-3.5 py-1.5 text-[11px] text-slate-400 italic">
+                                  Root CEO (Protected)
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteUser(user.id)}
+                                  className="w-full px-3.5 py-1.5 text-red-600 hover:bg-red-50 flex items-center gap-2 cursor-pointer transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5 text-red-500" />
+                                  <span>Delete</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-medium">View Only</span>
+                      )}
                     </td>
                   </tr>
                 ))

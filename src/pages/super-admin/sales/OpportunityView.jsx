@@ -22,11 +22,13 @@ import {
   BookOpen,
   ExternalLink,
   FileText,
-  Package
+  Package,
+  Printer
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
 import { normalizeOpportunity } from '../../../utils/salesUtils';
+import CommercialDocumentPdfModal from '../../../components/CommercialDocumentPdfModal';
 
 export default function OpportunityView({
   employees = [],
@@ -227,6 +229,235 @@ export default function OpportunityView({
     products: []
   });
 
+  // Dynamic business opportunity categories (Persisted to localStorage)
+  const [businessOppOptions, setBusinessOppOptions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alzaydan_business_opportunities');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { }
+    return [
+      'Industrial Chillers Supply',
+      'Commercial HVAC Retrofit',
+      'District Cooling Substations',
+      'Cold Storage Expansion Phase 2',
+      'Annual Maintenance Contract (AMC)',
+      'VRF / VRV System Installation',
+      'Cleanroom Air Handling Units',
+      'Ductwork & Ventilation Overhaul'
+    ];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('alzaydan_business_opportunities', JSON.stringify(businessOppOptions));
+    } catch { }
+  }, [businessOppOptions]);
+
+  // Dynamic opportunity types
+  const [oppTypeOptions, setOppTypeOptions] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alzaydan_opp_types');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch { }
+    return ['New Business', 'Expansion', 'Renewal', 'Maintenance', 'Retrofit', 'Commercial HVAC', 'Industrial Chiller'];
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('alzaydan_opp_types', JSON.stringify(oppTypeOptions));
+    } catch { }
+  }, [oppTypeOptions]);
+
+  // Dynamic storage sync trigger
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const handleSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener('alzaydan_customer_updated', handleSync);
+    window.addEventListener('alzaydan_lead_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('alzaydan_customer_updated', handleSync);
+      window.removeEventListener('alzaydan_lead_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  // Unified dynamic customers combining props and localStorage
+  const allCustomers = useMemo(() => {
+    const list = Array.isArray(customers) ? [...customers] : [];
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_customers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((c) => {
+            if (c.name && !list.some((item) => (item.name || '').toLowerCase() === c.name.toLowerCase())) {
+              list.push(c);
+            }
+          });
+        }
+      }
+    } catch { }
+    return list;
+  }, [customers, syncTick]);
+
+  // Quick Add Modal State for all "+ New" buttons
+  const [quickAddModal, setQuickAddModal] = useState({
+    isOpen: false,
+    type: '', // 'businessOpportunity' | 'customer' | 'lead' | 'owner' | 'type'
+    title: '',
+    name: '',
+    extra1: '',
+    extra2: '',
+    extra3: ''
+  });
+
+  const handleOpenQuickModal = (type) => {
+    const titles = {
+      businessOpportunity: 'Add New Business Opportunity',
+      customer: 'Quick Add New Customer',
+      lead: 'Quick Add New Lead',
+      owner: 'Add New Opportunity Owner',
+      type: 'Add New Opportunity Type'
+    };
+    setQuickAddModal({
+      isOpen: true,
+      type,
+      title: titles[type] || 'Add New Item',
+      name: '',
+      extra1: '',
+      extra2: '',
+      extra3: ''
+    });
+  };
+
+  const handleSaveQuickModal = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    const cleanName = (quickAddModal.name || '').trim();
+
+    if (!cleanName) {
+      toast.error('Please enter a valid title or name');
+      return;
+    }
+
+    if (quickAddModal.type === 'businessOpportunity') {
+      if (!businessOppOptions.includes(cleanName)) {
+        setBusinessOppOptions((prev) => [cleanName, ...prev]);
+      }
+      setAddOppForm((prev) => ({ ...prev, businessOpportunity: cleanName }));
+      toast.success(`Business Opportunity "${cleanName}" added and selected!`);
+    } else if (quickAddModal.type === 'type') {
+      if (!oppTypeOptions.includes(cleanName)) {
+        setOppTypeOptions((prev) => [cleanName, ...prev]);
+      }
+      setAddOppForm((prev) => ({ ...prev, type: cleanName }));
+      toast.success(`Opportunity Type "${cleanName}" added and selected!`);
+    } else if (quickAddModal.type === 'customer') {
+      const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+      const pContact = (quickAddModal.extra1 || '').trim() || cleanName;
+      const ph = (quickAddModal.extra2 || '').trim() || '+971 50 123 4567';
+      const em = (quickAddModal.extra3 || '').trim() || 'info@client.ae';
+      const newCustomer = {
+        id: Date.now(),
+        code: `AZ-CUST-${100 + allCustomers.length + 1}`,
+        date: todayStr,
+        name: cleanName,
+        customerName: cleanName,
+        company: cleanName,
+        owner: addOppForm.opportunityOwner || 'Super Admin',
+        ownerAvatarBg: 'bg-[#011635] text-white',
+        primaryContact: pContact,
+        contactPerson: pContact,
+        phone: ph,
+        contactPhone: ph,
+        email: em,
+        contactEmail: em,
+        location: 'Dubai, UAE',
+        address: 'Dubai, UAE',
+        industry: 'Commercial Trading',
+        lastEnquiry: todayStr,
+        openEnquiries: '1 Enquiry',
+        lastOrder: 'N/A',
+        outstanding: 'AED 0.00',
+        status: 'Active',
+        stage: 'Active Customer',
+        type: 'Customer',
+        createdAt: todayStr
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem('alzaydan_crm_customers') || '[]');
+        localStorage.setItem('alzaydan_crm_customers', JSON.stringify([newCustomer, ...saved]));
+        window.dispatchEvent(new Event('alzaydan_customer_updated'));
+      } catch { }
+      setAddOppForm((prev) => ({
+        ...prev,
+        customerName: cleanName,
+        pointOfContact: pContact,
+        contactPerson: pContact
+      }));
+      toast.success(`Customer "${cleanName}" created and selected!`);
+    } else if (quickAddModal.type === 'lead') {
+      const leadNum = `LD#${Math.floor(1000 + Math.random() * 9000)}`;
+      const newLead = {
+        id: Date.now(),
+        leadCode: leadNum,
+        codeNum: leadNum,
+        name: cleanName,
+        company: cleanName,
+        contactName: (quickAddModal.extra1 || '').trim(),
+        phone: (quickAddModal.extra2 || '').trim(),
+        status: 'New',
+        assignedTo: addOppForm.opportunityOwner || 'Super Admin',
+        createdAt: new Date().toLocaleDateString('en-GB')
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem('alzaydan_crm_leads') || '[]');
+        localStorage.setItem('alzaydan_crm_leads', JSON.stringify([newLead, ...saved]));
+        window.dispatchEvent(new Event('alzaydan_lead_updated'));
+      } catch { }
+      setAddOppForm((prev) => ({
+        ...prev,
+        leadNumber: leadNum
+      }));
+      toast.success(`Lead "${leadNum} - ${cleanName}" generated and linked!`);
+    } else if (quickAddModal.type === 'owner') {
+      const newOwner = {
+        id: Date.now(),
+        name: cleanName,
+        role: (quickAddModal.extra1 || 'Sales Executive').trim(),
+        roleTier: 'staff',
+        designation: (quickAddModal.extra1 || 'Sales Executive').trim(),
+        status: 'Active'
+      };
+      try {
+        const saved = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
+        localStorage.setItem('alzaydan_custom_employees', JSON.stringify([newOwner, ...saved]));
+        window.dispatchEvent(new Event('alzaydan_user_updated'));
+      } catch { }
+      setAddOppForm((prev) => ({
+        ...prev,
+        opportunityOwner: cleanName
+      }));
+      toast.success(`Opportunity Owner "${cleanName}" added and selected!`);
+    }
+
+    setQuickAddModal({
+      isOpen: false,
+      type: '',
+      title: '',
+      name: '',
+      extra1: '',
+      extra2: '',
+      extra3: ''
+    });
+  };
+
   // Sum of product line items
   const productsSumTotal = useMemo(() => {
     return (addOppForm.products || []).reduce(
@@ -235,11 +466,33 @@ export default function OpportunityView({
     );
   }, [addOppForm.products]);
 
+  // PDF Opportunity Document Preview Modal State
+  const [pdfPreviewModal, setPdfPreviewModal] = useState({
+    isOpen: false,
+    data: null
+  });
+
+  const handleOpenPdfPreview = (oppData) => {
+    if (!oppData) return;
+    setPdfPreviewModal({
+      isOpen: true,
+      data: oppData
+    });
+  };
+
+  const handleClosePdfPreview = () => {
+    setPdfPreviewModal({
+      isOpen: false,
+      data: null
+    });
+  };
+
   // Product details line items management
   const handleAddProductRow = () => {
     const newProduct = {
       id: Date.now() + Math.random(),
       itemName: '',
+      description: '',
       itemCode: '',
       brand: '',
       quantity: 1,
@@ -369,7 +622,7 @@ export default function OpportunityView({
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) raw = parsed;
         }
-      } catch {}
+      } catch { }
     }
     return raw.map(normalizeOpportunity).filter(Boolean);
   });
@@ -378,7 +631,7 @@ export default function OpportunityView({
     if (opportunities.length > 0) {
       try {
         localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(opportunities));
-      } catch {}
+      } catch { }
     }
     if (typeof propSetOpportunities === 'function') {
       propSetOpportunities(opportunities);
@@ -421,7 +674,7 @@ export default function OpportunityView({
     toast.success(`Opportunity stage updated to "${matched.label}" (${matched.probability}%)`);
   };
 
-  // Available leads from props and localStorage (safe, non-destructive)
+  // Available leads from props and localStorage (safe, non-destructive, sanitized)
   const availableLeads = useMemo(() => {
     let list = Array.isArray(leads) ? [...leads] : [];
     try {
@@ -436,9 +689,20 @@ export default function OpportunityView({
           });
         }
       }
-    } catch {}
-    return list;
-  }, [leads]);
+    } catch { }
+    return list.map((l) => {
+      let comp = (l.company || l.customerName || '').trim();
+      let cust = (l.customerName || l.company || '').trim();
+      let cont = (l.contactName || '').trim();
+      if (comp === 'New Enterprise Client') comp = '';
+      if (cust === 'New Enterprise Client') cust = '';
+      if (!cust && comp) cust = comp;
+      if (!comp && cust) comp = cust;
+      if (!cust && cont) cust = cont;
+      if (!comp && cont) comp = cont;
+      return { ...l, company: comp, customerName: cust, contactName: cont };
+    });
+  }, [leads, syncTick]);
 
   const handleLeadSelect = (selectedCode) => {
     if (!selectedCode || selectedCode === 'Direct Opportunity (No Lead)') {
@@ -449,30 +713,111 @@ export default function OpportunityView({
       return;
     }
 
-    const matchedLead = availableLeads.find(
-      (l) => l.leadCode === selectedCode || l.codeNum === selectedCode || String(l.id) === selectedCode
-    );
+    const cleanCode = String(selectedCode || '').trim().toLowerCase();
+    const matchedLead = availableLeads.find((l) => {
+      const lCode = String(l.leadCode || '').trim().toLowerCase();
+      const cNum = String(l.codeNum || '').trim().toLowerCase();
+      const lId = String(l.id || '').trim().toLowerCase();
+      const lNum = String(l.leadNumber || '').trim().toLowerCase();
+      return (
+        lCode === cleanCode ||
+        cNum === cleanCode ||
+        lId === cleanCode ||
+        lNum === cleanCode ||
+        (lCode && cleanCode.includes(lCode))
+      );
+    });
 
     if (matchedLead) {
-      const companyOrCust = matchedLead.customerName || matchedLead.company || matchedLead.name || '';
-      const personName = matchedLead.contactName || matchedLead.name || '';
+      // 1. Strictly Customer Name (Company/Organization)
+      let rawCust = (
+        (matchedLead.customerName && matchedLead.customerName !== 'New Enterprise Client' ? matchedLead.customerName : '') ||
+        (matchedLead.company && matchedLead.company !== 'New Enterprise Client' ? matchedLead.company : '') ||
+        matchedLead.contactName ||
+        matchedLead.name ||
+        ''
+      ).trim();
+      if (!rawCust || rawCust === 'New Enterprise Client') {
+        rawCust = 'Commercial Client';
+      }
+      const companyOrCust = rawCust;
+
+      // 2. Strictly Point of Contact (Individual Contact Person)
+      const personName = (
+        matchedLead.contactName ||
+        (matchedLead.name && matchedLead.name.toLowerCase() !== companyOrCust.toLowerCase() ? matchedLead.name : '') ||
+        companyOrCust
+      ).trim();
+
+      // 3. Matched Owner from available users
+      const rawOwner = (matchedLead.assignedTo || matchedLead.owner || 'Super Admin').trim();
+      const matchedUser = availableUsers.find(
+        (u) =>
+          u.name.toLowerCase() === rawOwner.toLowerCase() ||
+          rawOwner.toLowerCase().includes(u.name.toLowerCase()) ||
+          u.name.toLowerCase().includes(rawOwner.toLowerCase())
+      );
+      const finalOwner = matchedUser ? matchedUser.name : (rawOwner || defaultOwner);
+
+      // 4. Business Opportunity
+      const leadBiz = (matchedLead.businessOpportunity || matchedLead.opportunity || '').trim();
+      if (leadBiz && !businessOppOptions.includes(leadBiz)) {
+        setBusinessOppOptions((prev) => [leadBiz, ...prev]);
+        try {
+          const savedBiz = JSON.parse(localStorage.getItem('alzaydan_business_opportunities') || '[]');
+          if (!savedBiz.includes(leadBiz)) {
+            localStorage.setItem('alzaydan_business_opportunities', JSON.stringify([leadBiz, ...savedBiz]));
+          }
+        } catch { }
+      }
+
+      // 5. Ensure customer exists in localStorage directory so CRM tables and dropdowns have it
+      if (companyOrCust && companyOrCust !== 'Commercial Client') {
+        try {
+          const saved = JSON.parse(localStorage.getItem('alzaydan_crm_customers') || '[]');
+          if (!saved.some((c) => (c.name || '').toLowerCase() === companyOrCust.toLowerCase())) {
+            const newCustObj = {
+              id: Date.now(),
+              code: `AZ-CUST-${100 + saved.length + 1}`,
+              date: matchedLead.date || matchedLead.leadDate || '16-11-2026',
+              name: companyOrCust,
+              company: companyOrCust,
+              customerName: companyOrCust,
+              primaryContact: personName,
+              contactPerson: personName,
+              phone: matchedLead.phone || matchedLead.businessMobile || '+971 50 123 4567',
+              email: matchedLead.email || 'info@client.ae',
+              location: matchedLead.location || 'Dubai, UAE',
+              owner: finalOwner,
+              status: 'Active',
+              type: 'Customer'
+            };
+            localStorage.setItem('alzaydan_crm_customers', JSON.stringify([newCustObj, ...saved]));
+            window.dispatchEvent(new Event('alzaydan_customer_updated'));
+          }
+        } catch { }
+      }
+
+      // Update Opportunity Form (keep Opportunity Title untouched as requested)
       setAddOppForm((prev) => ({
         ...prev,
         leadNumber: matchedLead.leadCode || selectedCode,
-        customerName: companyOrCust || prev.customerName,
-        opportunityOwner: matchedLead.assignedTo || matchedLead.owner || prev.opportunityOwner,
-        pointOfContact: personName || prev.pointOfContact,
-        contactPerson: personName || prev.contactPerson,
-        location: matchedLead.location || prev.location,
-        opportunityTitle: prev.opportunityTitle || (companyOrCust ? `${companyOrCust} - Commercial Opportunity` : 'Commercial Opportunity'),
-        source: matchedLead.source || prev.source,
-        sourceName: matchedLead.sourceName || prev.sourceName,
-        rating: matchedLead.rating || prev.rating,
-        businessOpportunity: matchedLead.opportunity || matchedLead.businessOpportunity || prev.businessOpportunity,
-        campaign: matchedLead.campaign || prev.campaign,
-        opportunityTags: matchedLead.leadTags || matchedLead.tags || prev.opportunityTags
+        customerName: companyOrCust,
+        opportunityOwner: finalOwner,
+        pointOfContact: personName,
+        contactPerson: personName,
+        location: matchedLead.location || prev.location || 'Dubai, UAE',
+        opportunityTitle: prev.opportunityTitle || '',
+        source: matchedLead.source || prev.source || 'Direct Inbound',
+        sourceName: matchedLead.sourceName || prev.sourceName || '',
+        rating: matchedLead.rating || prev.rating || 'COLD',
+        businessOpportunity: leadBiz || prev.businessOpportunity,
+        campaign: matchedLead.campaign || prev.campaign || '',
+        opportunityTags: matchedLead.leadTags || matchedLead.tags || prev.opportunityTags || '',
+        opportunityDate: matchedLead.date || matchedLead.leadDate || prev.opportunityDate
       }));
-      toast.success(`Auto-filled details from Lead ${matchedLead.leadCode} (${companyOrCust})!`);
+
+      toast.success(`Auto-filled details from Lead ${matchedLead.leadCode || selectedCode} (${companyOrCust})!`);
     } else {
       setAddOppForm((prev) => ({
         ...prev,
@@ -839,7 +1184,7 @@ export default function OpportunityView({
         ? saved.filter((q) => q.quotationNo !== newQuotation.quotationNo && q.id !== newQuotation.id)
         : [];
       localStorage.setItem('alzaydan_crm_quotations', JSON.stringify([newQuotation, ...filtered]));
-    } catch {}
+    } catch { }
 
     if (addQuotationForm.updateOpportunityAmount && quotationOppTarget) {
       setOpportunities((prev) =>
@@ -877,7 +1222,32 @@ export default function OpportunityView({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => toast.info('Quick Add Customer modal opened')}
+                onClick={() => handleOpenPdfPreview({
+                  ...addOppForm,
+                  name: addOppForm.opportunityTitle || addOppForm.name || 'Commercial Opportunity',
+                  code: addOppForm.opportunityNumber || 'CTEQ#7539',
+                  customer: addOppForm.customerName || 'Commercial Client',
+                  contactPerson: addOppForm.pointOfContact || 'Procurement Department',
+                  oppDate: addOppForm.opportunityDate || '16-11-2026',
+                  closeDate: addOppForm.closeDate || '21-11-2026',
+                  owner: addOppForm.opportunityOwner || 'Super Admin',
+                  amount: addOppForm.amount || productsSumTotal || '0',
+                  discount: addOppForm.discount || '0',
+                  vatType: addOppForm.vatType || 'With VAT',
+                  vatRate: addOppForm.vat || '5',
+                  adjustment: addOppForm.adjustment || '0',
+                  products: addOppForm.products || []
+                })}
+                className="px-3 py-1.5 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                title="Preview PDF and Print Opportunity"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print / PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleOpenQuickModal('customer')}
                 className="px-3 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[3]" />
@@ -911,7 +1281,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Add New Customer shortcut')}
+                      onClick={() => handleOpenQuickModal('customer')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -923,14 +1293,16 @@ export default function OpportunityView({
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
                   >
                     <option value="">Select Customer</option>
-                    {addOppForm.customerName && !customers.some(c => c.name === addOppForm.customerName) && (
+                    {addOppForm.customerName && (
                       <option value={addOppForm.customerName}>{addOppForm.customerName}</option>
                     )}
-                    {customers.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {allCustomers
+                      .filter((c) => c.name !== addOppForm.customerName)
+                      .map((c) => (
+                        <option key={c.id || c.name} value={c.name}>
+                          {c.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -942,7 +1314,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Add New Owner shortcut')}
+                      onClick={() => handleOpenQuickModal('owner')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -1015,11 +1387,10 @@ export default function OpportunityView({
                           key={rate}
                           type="button"
                           onClick={() => setAddOppForm({ ...addOppForm, rating: rate })}
-                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                            isActive
-                              ? 'bg-[#0070BA] text-white shadow-xs'
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
+                          className={`px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${isActive
+                            ? 'bg-[#0070BA] text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                            }`}
                         >
                           {rate}
                         </button>
@@ -1039,9 +1410,36 @@ export default function OpportunityView({
                       placeholder="dd-mm-yyyy"
                       value={addOppForm.closeDate}
                       onChange={(e) => setAddOppForm({ ...addOppForm, closeDate: e.target.value })}
-                      className="w-full px-3.5 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                      className="w-full px-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addOppForm.closeDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOppForm({ ...addOppForm, closeDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch { }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOppForm({ ...addOppForm, closeDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1100,7 +1498,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Add New Business Opportunity')}
+                      onClick={() => handleOpenQuickModal('businessOpportunity')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -1112,11 +1510,14 @@ export default function OpportunityView({
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
                   >
                     <option value="">Select Business Opportunity</option>
-                    <option value="Industrial Chillers Supply">Industrial Chillers Supply</option>
-                    <option value="Commercial HVAC Retrofit">Commercial HVAC Retrofit</option>
-                    <option value="District Cooling Substations">District Cooling Substations</option>
-                    <option value="Cold Storage Expansion Phase 2">Cold Storage Expansion Phase 2</option>
-                    <option value="Annual Maintenance Contract (AMC)">Annual Maintenance Contract (AMC)</option>
+                    {addOppForm.businessOpportunity && !businessOppOptions.includes(addOppForm.businessOpportunity) && (
+                      <option value={addOppForm.businessOpportunity}>{addOppForm.businessOpportunity}</option>
+                    )}
+                    {businessOppOptions.map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1131,9 +1532,36 @@ export default function OpportunityView({
                       placeholder="dd-mm-yyyy"
                       value={addOppForm.deliveryDate}
                       onChange={(e) => setAddOppForm({ ...addOppForm, deliveryDate: e.target.value })}
-                      className="w-full px-3.5 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                      className="w-full px-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addOppForm.deliveryDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOppForm({ ...addOppForm, deliveryDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch { }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOppForm({ ...addOppForm, deliveryDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1148,9 +1576,36 @@ export default function OpportunityView({
                       placeholder="dd-mm-yyyy"
                       value={addOppForm.lpoDate}
                       onChange={(e) => setAddOppForm({ ...addOppForm, lpoDate: e.target.value })}
-                      className="w-full px-3.5 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                      className="w-full px-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addOppForm.lpoDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOppForm({ ...addOppForm, lpoDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch { }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOppForm({ ...addOppForm, lpoDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1176,7 +1631,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Add New Type')}
+                      onClick={() => handleOpenQuickModal('type')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -1188,11 +1643,14 @@ export default function OpportunityView({
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
                   >
                     <option value="">Select Type</option>
-                    <option value="New Business">New Business</option>
-                    <option value="Expansion">Expansion</option>
-                    <option value="Renewal">Renewal</option>
-                    <option value="Maintenance">Maintenance</option>
-                    <option value="Retrofit">Retrofit</option>
+                    {addOppForm.type && !oppTypeOptions.includes(addOppForm.type) && (
+                      <option value={addOppForm.type}>{addOppForm.type}</option>
+                    )}
+                    {oppTypeOptions.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1261,7 +1719,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Create New Lead shortcut')}
+                      onClick={() => handleOpenQuickModal('lead')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -1274,13 +1732,20 @@ export default function OpportunityView({
                   >
                     <option value="">Select Lead (Optional)</option>
                     <option value="Direct Opportunity (No Lead)">Direct Opportunity (No Lead)</option>
+                    {addOppForm.leadNumber && !availableLeads.some(l => (l.leadCode || l.codeNum || String(l.id)) === addOppForm.leadNumber) && (
+                      <option value={addOppForm.leadNumber}>{addOppForm.leadNumber}</option>
+                    )}
                     {availableLeads.map((l) => {
                       const code = l.leadCode || l.codeNum || String(l.id);
-                      const displayTitle = l.customerName || l.company || l.name || 'Lead';
+                      let displayTitle = l.customerName || l.company || l.name || 'Lead';
+                      if (displayTitle === 'New Enterprise Client') {
+                        displayTitle = l.contactName || l.name || 'Lead';
+                      }
                       const contact = l.contactName || (l.name && l.name !== displayTitle ? l.name : '');
+                      const contactSuffix = contact && contact.toLowerCase() !== displayTitle.toLowerCase() ? ` (${contact})` : '';
                       return (
                         <option key={`lead-opt-${l.id || code}`} value={code}>
-                          {code} - {displayTitle} {contact ? `(${contact})` : ''}
+                          {code} - {displayTitle}{contactSuffix}
                         </option>
                       );
                     })}
@@ -1295,11 +1760,39 @@ export default function OpportunityView({
                   <div className="relative">
                     <input
                       type="text"
+                      placeholder="dd-mm-yyyy"
                       value={addOppForm.opportunityDate}
                       onChange={(e) => setAddOppForm({ ...addOppForm, opportunityDate: e.target.value })}
-                      className="w-full px-3.5 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                      className="w-full px-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addOppForm.opportunityDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOppForm({ ...addOppForm, opportunityDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch { }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOppForm({ ...addOppForm, opportunityDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1570,7 +2063,7 @@ export default function OpportunityView({
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
                           <th className="py-2.5 px-3 w-10 text-center">#</th>
-                          <th className="py-2.5 px-3 min-w-[200px]">Item Name <span className="text-rose-500">*</span></th>
+                          <th className="py-2.5 px-3 min-w-[240px]">Item Name & Description <span className="text-rose-500">*</span></th>
                           <th className="py-2.5 px-3 min-w-[120px]">Item Code</th>
                           <th className="py-2.5 px-3 min-w-[120px]">Brand</th>
                           <th className="py-2.5 px-3 w-24 text-center">Quantity</th>
@@ -1591,7 +2084,14 @@ export default function OpportunityView({
                                 placeholder="Enter item name..."
                                 value={item.itemName}
                                 onChange={(e) => handleUpdateProductRow(item.id, 'itemName', e.target.value)}
-                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Technical description / specs (optional)..."
+                                value={item.description || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'description', e.target.value)}
+                                className="w-full mt-1 px-2.5 py-1 bg-white border border-dashed border-slate-300 rounded-md text-[11px] text-slate-600 outline-none focus:border-[#16477A]"
                               />
                             </td>
                             <td className="py-2 px-3">
@@ -1674,8 +2174,32 @@ export default function OpportunityView({
               )}
             </div>
 
-            {/* Bottom Action Row: [Submit] and [← Back] */}
+            {/* Bottom Action Row: [Print / PDF], [Submit] and [← Back] */}
             <div className="pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => handleOpenPdfPreview({
+                  ...addOppForm,
+                  name: addOppForm.opportunityTitle || addOppForm.name || 'Commercial Opportunity',
+                  code: addOppForm.opportunityNumber || 'CTEQ#7539',
+                  customer: addOppForm.customerName || 'Commercial Client',
+                  contactPerson: addOppForm.pointOfContact || 'Procurement Department',
+                  oppDate: addOppForm.opportunityDate || '16-11-2026',
+                  closeDate: addOppForm.closeDate || '21-11-2026',
+                  owner: addOppForm.opportunityOwner || 'Super Admin',
+                  amount: addOppForm.amount || productsSumTotal || '0',
+                  discount: addOppForm.discount || '0',
+                  vatType: addOppForm.vatType || 'With VAT',
+                  vatRate: addOppForm.vat || '5',
+                  adjustment: addOppForm.adjustment || '0',
+                  products: addOppForm.products || []
+                })}
+                className="px-4 py-2 bg-[#16477A] hover:bg-[#0f345a] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                title="Preview PDF and Print Opportunity"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print / PDF</span>
+              </button>
               <button
                 type="submit"
                 className="px-6 py-2 bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
@@ -1712,14 +2236,26 @@ export default function OpportunityView({
               </span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className="w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center cursor-pointer transition shadow-xs"
-              title="Close and return to list"
-            >
-              <X className="w-4 h-4 stroke-[2.5]" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenPdfPreview(viewTargetOpp)}
+                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                title="Preview PDF and Print Opportunity"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print / PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center cursor-pointer transition shadow-xs"
+                title="Close and return to list"
+              >
+                <X className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
 
           {/* Sub-tab Ribbon (10 Tabs matching Image 1) */}
@@ -1742,11 +2278,10 @@ export default function OpportunityView({
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveDetailTab(tab.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2.5 font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-                    isActive
-                      ? 'border-rose-600 text-rose-600 bg-white shadow-2xs'
-                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
-                  }`}
+                  className={`flex items-center gap-1.5 px-3 py-2.5 font-bold transition-all border-b-2 whitespace-nowrap cursor-pointer ${isActive
+                    ? 'border-rose-600 text-rose-600 bg-white shadow-2xs'
+                    : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/50'
+                    }`}
                 >
                   {tab.icon && <tab.icon className="w-3.5 h-3.5" />}
                   <span>{tab.label}</span>
@@ -1785,11 +2320,10 @@ export default function OpportunityView({
                     key={stage.label}
                     type="button"
                     onClick={() => handleUpdateStage(viewTargetOpp.id, stage.label)}
-                    className={`relative py-2.5 px-3 text-center text-xs font-bold transition-all rounded-lg shadow-2xs cursor-pointer ${
-                      isActive
-                        ? 'bg-[#0087D1] text-white ring-2 ring-blue-300 ring-offset-1 scale-[1.02]'
-                        : 'bg-[#8FA3B7] hover:bg-slate-500 text-white/90'
-                    }`}
+                    className={`relative py-2.5 px-3 text-center text-xs font-bold transition-all rounded-lg shadow-2xs cursor-pointer ${isActive
+                      ? 'bg-[#0087D1] text-white ring-2 ring-blue-300 ring-offset-1 scale-[1.02]'
+                      : 'bg-[#8FA3B7] hover:bg-slate-500 text-white/90'
+                      }`}
                     title={`Click to set stage to ${stage.label}`}
                   >
                     <div className="leading-tight">{stage.label}</div>
@@ -1865,9 +2399,8 @@ export default function OpportunityView({
                     <button
                       type="button"
                       onClick={() => setDetailStageDropdownOpen(!detailStageDropdownOpen)}
-                      className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs hover:opacity-90 ${
-                        (STAGE_CONFIG.find((s) => s.label.toLowerCase() === (viewTargetOpp.stage || '').toLowerCase())?.color) || 'bg-[#1D68F2] text-white'
-                      }`}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs hover:opacity-90 ${(STAGE_CONFIG.find((s) => s.label.toLowerCase() === (viewTargetOpp.stage || '').toLowerCase())?.color) || 'bg-[#1D68F2] text-white'
+                        }`}
                       title="Click to change Opportunity Stage"
                     >
                       <Edit3 className="w-2.5 h-2.5" />
@@ -1890,9 +2423,8 @@ export default function OpportunityView({
                                 handleUpdateStage(viewTargetOpp.id, stg.label);
                                 setDetailStageDropdownOpen(false);
                               }}
-                              className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-50 transition cursor-pointer font-medium ${
-                                isSelected ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'
-                              }`}
+                              className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-50 transition cursor-pointer font-medium ${isSelected ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'
+                                }`}
                             >
                               <div className="flex items-center gap-2">
                                 <span className="text-xs">{stg.icon}</span>
@@ -1950,8 +2482,17 @@ export default function OpportunityView({
                 </div>
               </div>
 
-              {/* Action Buttons (Convert, Assign, Edit, Delete) matching Image 1 */}
+              {/* Action Buttons (Print/PDF, Convert, Assign, Edit, Delete) matching Image 1 */}
               <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPdfPreview(viewTargetOpp)}
+                  className="px-3.5 py-2 rounded-lg bg-[#011635] text-white text-xs font-bold flex items-center gap-1.5 hover:bg-[#07244a] transition cursor-pointer shadow-2xs"
+                  title="Print or Export Opportunity as PDF"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / PDF</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => toast.info('Convert to Multiple Opportunity initiated')}
@@ -2095,7 +2636,14 @@ export default function OpportunityView({
                       <tbody className="divide-y divide-slate-100">
                         {viewTargetOpp.products.map((p, idx) => (
                           <tr key={p.id || idx} className="hover:bg-slate-50/50">
-                            <td className="py-2.5 px-3 font-semibold text-slate-900">{p.itemName || '—'}</td>
+                            <td className="py-2.5 px-3">
+                              <div className="font-semibold text-slate-900">{p.itemName || '—'}</div>
+                              {(p.description || p.itemCode) && (
+                                <div className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+                                  {p.description || `Technical spec code: ${p.itemCode}`}
+                                </div>
+                              )}
+                            </td>
                             <td className="py-2.5 px-3 font-mono text-slate-600">{p.itemCode || '—'}</td>
                             <td className="py-2.5 px-3 text-slate-700">{p.brand || '—'}</td>
                             <td className="py-2.5 px-3 text-center font-bold text-slate-800">{p.quantity || 1}</td>
@@ -2131,11 +2679,10 @@ export default function OpportunityView({
                     key={tab}
                     type="button"
                     onClick={() => setActiveActivityTab(tab)}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-                      activeActivityTab === tab
-                        ? 'bg-slate-100 text-slate-900 shadow-2xs'
-                        : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-                    }`}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${activeActivityTab === tab
+                      ? 'bg-slate-100 text-slate-900 shadow-2xs'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+                      }`}
                   >
                     {tab}
                   </button>
@@ -2230,7 +2777,7 @@ export default function OpportunityView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('New Opportunity shortcut')}
+                      onClick={() => setViewMode('create')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -2335,11 +2882,39 @@ export default function OpportunityView({
                   <div className="relative">
                     <input
                       type="text"
+                      placeholder="dd-mm-yyyy"
                       value={addQuotationForm.quotationDate}
                       onChange={(e) => setAddQuotationForm({ ...addQuotationForm, quotationDate: e.target.value })}
-                      className="w-full px-3.5 py-2 pr-9 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                      className="w-full px-3.5 py-2 pr-16 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
                     />
-                    <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addQuotationForm.quotationDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddQuotationForm({ ...addQuotationForm, quotationDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch { }
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddQuotationForm({ ...addQuotationForm, quotationDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -2453,978 +3028,1125 @@ export default function OpportunityView({
           {/* ============================================================== */}
           {/* 1. TOP HORIZONTAL PILL BUTTONS (Matching Image 1 Exactly)      */}
           {/* ============================================================== */}
-      <div className="bg-white rounded-2xl p-2.5 border border-slate-200/80 shadow-2xs flex items-center gap-2 overflow-x-auto">
-        {[
-          { id: 'All', label: 'All', icon: Search, count: opportunities.length },
-          { id: 'Unread', label: 'Unread', icon: Clock, count: 0 },
-          { id: 'Open', label: 'Open', icon: Star, count: opportunities.filter((o) => o.status === 'Open').length, isStar: true },
-          { id: 'Today', label: 'Today', icon: Clock, count: 0 },
-          { id: 'Overdue', label: 'Overdue', icon: Clock, count: 0 },
-          { id: 'Upcoming', label: 'Upcoming', icon: Calendar, count: 0 },
-          { id: 'Lost', label: 'Lost', icon: X, count: 0 },
-          { id: 'Order', label: 'Order', icon: ShoppingCart, count: 0 },
-          { id: 'Overview', label: 'Overview', icon: Layers, noCount: true }
-        ].map((pill) => {
-          const Icon = pill.icon;
-          const isActive = activePill === pill.id;
+          <div className="bg-white rounded-2xl p-2.5 border border-slate-200/80 shadow-2xs flex items-center gap-2 overflow-x-auto">
+            {[
+              { id: 'All', label: 'All', icon: Search, count: opportunities.length },
+              { id: 'Unread', label: 'Unread', icon: Clock, count: 0 },
+              { id: 'Open', label: 'Open', icon: Star, count: opportunities.filter((o) => o.status === 'Open').length, isStar: true },
+              { id: 'Today', label: 'Today', icon: Clock, count: 0 },
+              { id: 'Overdue', label: 'Overdue', icon: Clock, count: 0 },
+              { id: 'Upcoming', label: 'Upcoming', icon: Calendar, count: 0 },
+              { id: 'Lost', label: 'Lost', icon: X, count: 0 },
+              { id: 'Order', label: 'Order', icon: ShoppingCart, count: 0 },
+              { id: 'Overview', label: 'Overview', icon: Layers, noCount: true }
+            ].map((pill) => {
+              const Icon = pill.icon;
+              const isActive = activePill === pill.id;
 
-          return (
-            <button
-              key={pill.id}
-              type="button"
-              onClick={() => {
-                setActivePill(pill.id);
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${
-                isActive
-                  ? pill.isStar
-                    ? 'border-2 border-rose-500 text-rose-600 bg-rose-50/30 shadow-xs'
-                    : 'bg-[#011635] text-white shadow-xs'
-                  : 'border border-slate-200/90 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Icon
-                className={`w-3.5 h-3.5 ${
-                  isActive
-                    ? pill.isStar
-                      ? 'text-rose-500 fill-rose-500'
-                      : 'text-white'
-                    : 'text-slate-400'
-                }`}
-              />
-              <span>{pill.label}</span>
-              {!pill.noCount && (
-                <span
-                  className={`text-[10px] font-mono px-1 rounded ${
-                    isActive
-                      ? pill.isStar
-                        ? 'bg-rose-100 text-rose-700'
-                        : 'bg-white/20 text-white'
-                      : 'text-slate-400'
-                  }`}
-                >
-                  {pill.count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ============================================================== */}
-      {/* 2. SPLIT LAYOUT: LEFT FILTER CRITERIA | RIGHT OPPORTUNITIES     */}
-      {/* ============================================================== */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
-        {/* LEFT COLUMN: FILTER CRITERIA CARD (Matching Image 1) */}
-        {showFilterSidebar && (
-          <div className="lg:col-span-3 bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3.5 animate-in fade-in slide-in-from-left-2 duration-150">
-            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-4 h-4 text-blue-600" />
-                <h3 className="font-extrabold text-xs text-slate-900 tracking-tight">
-                  Filter Criteria
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowFilterSidebar(false);
-                  toast.info('Filter panel collapsed');
-                }}
-                className="text-rose-500 hover:text-rose-700 transition cursor-pointer p-0.5 rounded-md hover:bg-rose-50"
-                title="Close Filter Criteria"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-          <div className="space-y-3 text-xs">
-            {/* Customer / Prospect */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Customer/ Prospect
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Select Customer/Prospect"
-                  value={filterCustomer}
-                  onChange={(e) => {
-                    setFilterCustomer(e.target.value);
+              return (
+                <button
+                  key={pill.id}
+                  type="button"
+                  onClick={() => {
+                    setActivePill(pill.id);
                     setCurrentPage(1);
                   }}
-                  className="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800"
-                />
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* Classification */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Classification
-              </label>
-              <select
-                value={filterClassification}
-                onChange={(e) => {
-                  setFilterClassification(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="All Classification">All Classification</option>
-                <option value="A - Enterprise">A - Enterprise</option>
-                <option value="B - Mid-Market">B - Mid-Market</option>
-                <option value="C - Standard">C - Standard</option>
-              </select>
-            </div>
-
-            {/* Stage */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Stage
-              </label>
-              <select
-                value={filterStage}
-                onChange={(e) => {
-                  setFilterStage(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="All Stages">All Stages</option>
-                {STAGE_CONFIG.map((stg) => (
-                  <option key={stg.label} value={stg.label}>
-                    {stg.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Rating */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Rating
-              </label>
-              <select
-                value={filterRating}
-                onChange={(e) => {
-                  setFilterRating(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="All">All</option>
-                <option value="HOT">HOT</option>
-                <option value="WARM">WARM</option>
-                <option value="COLD">COLD</option>
-              </select>
-            </div>
-
-            {/* Business Opportunity */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Business Opportunity
-              </label>
-              <select
-                value={filterBizType}
-                onChange={(e) => {
-                  setFilterBizType(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="Select Type">Select Type</option>
-                <option value="New Business">New Business</option>
-                <option value="Renewal">Renewal</option>
-                <option value="Expansion">Expansion</option>
-              </select>
-            </div>
-
-            {/* Opportunity Owner */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Opportunity Owner
-              </label>
-              <select
-                value={filterOwner}
-                onChange={(e) => {
-                  setFilterOwner(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="All Owners">All Owners</option>
-                {ownerOptions.map((owner) => (
-                  <option key={owner} value={owner}>
-                    {owner}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Campaign */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Campaign
-              </label>
-              <select
-                value={filterCampaign}
-                onChange={(e) => {
-                  setFilterCampaign(e.target.value);
-                  setCurrentPage(1);
-                }}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="Select Campaign">Select Campaign</option>
-                <option value="Q4 Industrial Expo">Q4 Industrial Expo</option>
-                <option value="JAFZA Outreach">JAFZA Outreach</option>
-                <option value="Direct">Direct</option>
-              </select>
-            </div>
-
-            {/* Created By */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Created By
-              </label>
-              <select
-                value={filterCreatedBy}
-                onChange={(e) => setFilterCreatedBy(e.target.value)}
-                className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
-              >
-                <option value="All">All</option>
-                <option value="Super Admin">Super Admin</option>
-                <option value="Sales Manager">Sales Manager</option>
-              </select>
-            </div>
-
-            {/* Tags */}
-            <div>
-              <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                Tags
-              </label>
-              <input
-                type="text"
-                placeholder="Select tags"
-                value={filterTags}
-                onChange={(e) => setFilterTags(e.target.value)}
-                className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800"
-              />
-            </div>
-
-            {/* Reset Filters Link */}
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={handleResetFilters}
-                className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-              >
-                <RotateCw className="w-3 h-3" />
-                Reset Filters
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-        {/* RIGHT COLUMN: OPPORTUNITIES TABLE CONTAINER */}
-        <div
-          className={`${
-            showFilterSidebar ? 'lg:col-span-9' : 'lg:col-span-12'
-          } bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all duration-200`}
-        >
-          {/* Section Header: [⭐ Open Opportunities] + Actions */}
-          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/40">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setShowFilterSidebar(!showFilterSidebar)}
-                className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${
-                  showFilterSidebar
-                    ? 'bg-blue-50 text-blue-700 border-blue-200'
-                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-2xs'
-                }`}
-                title={showFilterSidebar ? 'Hide Filters' : 'Show Filters'}
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
-                <span>Filter</span>
-              </button>
-
-              <Star className="w-4.5 h-4.5 text-amber-500 fill-amber-500" />
-              <h2 className="font-extrabold text-sm text-slate-900 tracking-tight">
-                {activePill === 'Open' ? 'Open Opportunities' : `${activePill} Opportunities`}
-              </h2>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsUploadModalOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-              >
-                <UploadCloud className="w-3.5 h-3.5" />
-                <span>Upload Opportunity</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setIsAssignModalOpen(true)}
-                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Assign Opportunity</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenAddOpportunity}
-                className="px-3.5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
-              >
-                <Plus className="w-3.5 h-3.5 stroke-[3]" />
-                <span>+ + OPPORTUNITY</span>
-              </button>
-            </div>
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all flex items-center gap-1.5 shrink-0 cursor-pointer ${isActive
+                    ? pill.isStar
+                      ? 'border-2 border-rose-500 text-rose-600 bg-rose-50/30 shadow-xs'
+                      : 'bg-[#011635] text-white shadow-xs'
+                    : 'border border-slate-200/90 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                    }`}
+                >
+                  <Icon
+                    className={`w-3.5 h-3.5 ${isActive
+                      ? pill.isStar
+                        ? 'text-rose-500 fill-rose-500'
+                        : 'text-white'
+                      : 'text-slate-400'
+                      }`}
+                  />
+                  <span>{pill.label}</span>
+                  {!pill.noCount && (
+                    <span
+                      className={`text-[10px] font-mono px-1 rounded ${isActive
+                        ? pill.isStar
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-white/20 text-white'
+                        : 'text-slate-400'
+                        }`}
+                    >
+                      {pill.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
 
-          {/* Sub-bar: Shows [10 ▾] Rows & Search Opportunity */}
-          <div className="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
-            <div className="flex items-center gap-1.5 text-slate-500 font-medium">
-              <span>Shows</span>
-              <select
-                value={rowsPerPage}
-                onChange={(e) => {
-                  setRowsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold outline-none cursor-pointer"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-              </select>
-              <span>Rows</span>
-            </div>
+          {/* ============================================================== */}
+          {/* 2. SPLIT LAYOUT: LEFT FILTER CRITERIA | RIGHT OPPORTUNITIES     */}
+          {/* ============================================================== */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+            {/* LEFT COLUMN: FILTER CRITERIA CARD (Matching Image 1) */}
+            {showFilterSidebar && (
+              <div className="lg:col-span-3 bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs space-y-3.5 animate-in fade-in slide-in-from-left-2 duration-150">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-4 h-4 text-blue-600" />
+                    <h3 className="font-extrabold text-xs text-slate-900 tracking-tight">
+                      Filter Criteria
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFilterSidebar(false);
+                      toast.info('Filter panel collapsed');
+                    }}
+                    className="text-rose-500 hover:text-rose-700 transition cursor-pointer p-0.5 rounded-md hover:bg-rose-50"
+                    title="Close Filter Criteria"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                placeholder="Search Opportunity"
-                className="pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 w-48 sm:w-64"
-              />
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-            </div>
-          </div>
+                <div className="space-y-3 text-xs">
+                  {/* Customer / Prospect */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Customer/ Prospect
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Select Customer/Prospect"
+                        value={filterCustomer}
+                        onChange={(e) => {
+                          setFilterCustomer(e.target.value);
+                          setCurrentPage(1);
+                        }}
+                        className="w-full pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800"
+                      />
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
+                  </div>
 
-          {/* Table: Exact Columns matching Image 1 */}
-          <div className="overflow-x-auto min-h-[420px] pb-24">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
-                  <th className="py-3 px-3 w-8">
+                  {/* Classification */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Classification
+                    </label>
+                    <select
+                      value={filterClassification}
+                      onChange={(e) => {
+                        setFilterClassification(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="All Classification">All Classification</option>
+                      <option value="A - Enterprise">A - Enterprise</option>
+                      <option value="B - Mid-Market">B - Mid-Market</option>
+                      <option value="C - Standard">C - Standard</option>
+                    </select>
+                  </div>
+
+                  {/* Stage */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Stage
+                    </label>
+                    <select
+                      value={filterStage}
+                      onChange={(e) => {
+                        setFilterStage(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="All Stages">All Stages</option>
+                      {STAGE_CONFIG.map((stg) => (
+                        <option key={stg.label} value={stg.label}>
+                          {stg.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Rating */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Rating
+                    </label>
+                    <select
+                      value={filterRating}
+                      onChange={(e) => {
+                        setFilterRating(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="All">All</option>
+                      <option value="HOT">HOT</option>
+                      <option value="WARM">WARM</option>
+                      <option value="COLD">COLD</option>
+                    </select>
+                  </div>
+
+                  {/* Business Opportunity */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Business Opportunity
+                    </label>
+                    <select
+                      value={filterBizType}
+                      onChange={(e) => {
+                        setFilterBizType(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="Select Type">Select Type</option>
+                      <option value="New Business">New Business</option>
+                      <option value="Renewal">Renewal</option>
+                      <option value="Expansion">Expansion</option>
+                    </select>
+                  </div>
+
+                  {/* Opportunity Owner */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Opportunity Owner
+                    </label>
+                    <select
+                      value={filterOwner}
+                      onChange={(e) => {
+                        setFilterOwner(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="All Owners">All Owners</option>
+                      {ownerOptions.map((owner) => (
+                        <option key={owner} value={owner}>
+                          {owner}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Campaign */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Campaign
+                    </label>
+                    <select
+                      value={filterCampaign}
+                      onChange={(e) => {
+                        setFilterCampaign(e.target.value);
+                        setCurrentPage(1);
+                      }}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="Select Campaign">Select Campaign</option>
+                      <option value="Q4 Industrial Expo">Q4 Industrial Expo</option>
+                      <option value="JAFZA Outreach">JAFZA Outreach</option>
+                      <option value="Direct">Direct</option>
+                    </select>
+                  </div>
+
+                  {/* Created By */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Created By
+                    </label>
+                    <select
+                      value={filterCreatedBy}
+                      onChange={(e) => setFilterCreatedBy(e.target.value)}
+                      className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 cursor-pointer"
+                    >
+                      <option value="All">All</option>
+                      <option value="Super Admin">Super Admin</option>
+                      <option value="Sales Manager">Sales Manager</option>
+                    </select>
+                  </div>
+
+                  {/* Tags */}
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 mb-1">
+                      Tags
+                    </label>
                     <input
-                      type="checkbox"
-                      onChange={handleSelectAll}
-                      checked={pagedList.length > 0 && selectedIds.length === pagedList.length}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
+                      type="text"
+                      placeholder="Select tags"
+                      value={filterTags}
+                      onChange={(e) => setFilterTags(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800"
                     />
-                  </th>
-                  <th className="py-3 px-2">SL.No</th>
-                  <th className="py-3 px-3">Owner</th>
-                  <th className="py-3 px-3">Opportunity Date</th>
-                  <th className="py-3 px-3">Opportunity Assigned</th>
-                  <th className="py-3 px-3">Opportunity</th>
-                  <th className="py-3 px-3">Customer</th>
-                  <th className="py-3 px-3">Last Activity</th>
-                  <th className="py-3 px-3">Close Date</th>
-                  <th className="py-3 px-3">Stage & Win Probability</th>
-                  <th className="py-3 px-3">Amount</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {filteredList.length === 0 ? (
-                  <tr>
-                    <td colSpan={12} className="py-20 text-center text-slate-400 font-medium text-xs">
-                      <div className="flex flex-col items-center justify-center gap-1.5">
-                        <Star className="w-8 h-8 text-slate-300 stroke-[1.5]" />
-                        <span>No opportunities found matching the selected filters.</span>
-                        <span className="text-[11px] text-slate-400">
-                          Click "+ + OPPORTUNITY" to create a new commercial pipeline opportunity.
-                        </span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  pagedList.map((item, idx) => (
-                    <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-3">
+                  </div>
+
+                  {/* Reset Filters Link */}
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={handleResetFilters}
+                      className="text-[11px] text-blue-600 hover:text-blue-800 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                    >
+                      <RotateCw className="w-3 h-3" />
+                      Reset Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* RIGHT COLUMN: OPPORTUNITIES TABLE CONTAINER */}
+            <div
+              className={`${showFilterSidebar ? 'lg:col-span-9' : 'lg:col-span-12'
+                } bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden transition-all duration-200`}
+            >
+              {/* Section Header: [⭐ Open Opportunities] + Actions */}
+              <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-50/40">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterSidebar(!showFilterSidebar)}
+                    className={`px-2.5 py-1 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer ${showFilterSidebar
+                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                      : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50 shadow-2xs'
+                      }`}
+                    title={showFilterSidebar ? 'Hide Filters' : 'Show Filters'}
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Filter</span>
+                  </button>
+
+                  <Star className="w-4.5 h-4.5 text-amber-500 fill-amber-500" />
+                  <h2 className="font-extrabold text-sm text-slate-900 tracking-tight">
+                    {activePill === 'Open' ? 'Open Opportunities' : `${activePill} Opportunities`}
+                  </h2>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>Upload Opportunity</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAssignModalOpen(true)}
+                    className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Assign Opportunity</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleOpenAddOpportunity}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>+ + OPPORTUNITY</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Sub-bar: Shows [10 ▾] Rows & Search Opportunity */}
+              <div className="p-3.5 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-1.5 text-slate-500 font-medium">
+                  <span>Shows</span>
+                  <select
+                    value={rowsPerPage}
+                    onChange={(e) => {
+                      setRowsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-slate-800 font-bold outline-none cursor-pointer"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                  </select>
+                  <span>Rows</span>
+                </div>
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    placeholder="Search Opportunity"
+                    className="pl-3 pr-8 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none text-slate-800 w-48 sm:w-64"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* Table: Exact Columns matching Image 1 */}
+              <div className="overflow-x-auto min-h-[420px] pb-24">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
+                      <th className="py-3 px-3 w-8">
                         <input
                           type="checkbox"
-                          checked={selectedIds.includes(item.id)}
-                          onChange={() => handleToggleSelect(item.id)}
+                          onChange={handleSelectAll}
+                          checked={pagedList.length > 0 && selectedIds.length === pagedList.length}
                           className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
                         />
-                      </td>
-                      <td className="py-3 px-2 font-mono text-slate-400 font-bold text-[11px]">
-                        {String((currentPage - 1) * rowsPerPage + idx + 1).padStart(2, '0')}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${item.ownerAvatarBg || 'bg-[#011635] text-white'}`}>
-                            {(item.owner || 'A')[0]}
-                          </div>
-                          <span className="font-semibold text-slate-700 text-xs">
-                            {item.owner || 'Al Zaydan'}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                        {item.oppDate}
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                        {item.assignedDate}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div
-                          onClick={() => handleOpenView(item)}
-                          className="font-bold text-blue-600 text-xs hover:underline cursor-pointer"
-                        >
-                          {item.name || 'Commercial Opportunity'}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono">
-                          {item.code || 'OPP-0000'} &bull; {item.bizType || 'New Business'}
-                        </div>
-                      </td>
-                      <td className="py-3 px-3">
-                        <span className="font-bold text-slate-800 text-xs">
-                          {item.customer || 'Enterprise Customer'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="text-slate-600 font-mono text-[11px]">
-                          {item.lastActivity || '16-11-2026'}
-                        </div>
-                        <span className="px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold">
-                          {item.lastActivityDays || 'Today'}
-                        </span>
-                      </td>
-                      <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                        {item.closeDate || '28-11-2026'}
-                      </td>
-                      <td className="py-3 px-3">
-                        <div className="flex flex-col items-start gap-1">
-                          {/* Clickable Stage Pill with Dropdown */}
-                          <div className="relative inline-block text-left" data-stage-dropdown>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveStageDropdownId(activeStageDropdownId === item.id ? null : item.id);
-                              }}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-2xs hover:opacity-90 transition-all cursor-pointer ${
-                                (STAGE_CONFIG.find((s) => s.label.toLowerCase() === (item.stage || '').toLowerCase())?.color) || 'bg-[#1D68F2] text-white'
-                              }`}
-                              title="Click to change Opportunity Stage"
-                            >
-                              <Edit3 className="w-3 h-3" />
-                              <span>{item.stage || 'Enquiry'}</span>
-                              <ChevronDown className="w-3 h-3 opacity-80" />
-                            </button>
-
-                            {/* Dropdown Menu to change stage */}
-                            {activeStageDropdownId === item.id && (
-                              <div className="absolute left-0 mt-1.5 w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
-                                <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                                  Change Stage
-                                </div>
-                                {STAGE_CONFIG.map((stg) => {
-                                  const isSelected = (item.stage || 'Enquiry').toLowerCase() === stg.label.toLowerCase();
-                                  return (
-                                    <button
-                                      key={stg.label}
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleUpdateStage(item.id, stg.label);
-                                        setActiveStageDropdownId(null);
-                                      }}
-                                      className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-50 transition cursor-pointer font-medium ${
-                                        isSelected ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'
-                                      }`}
-                                    >
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs">{stg.icon}</span>
-                                        <span>{stg.label}</span>
-                                      </div>
-                                      <span className="font-mono text-[10px] text-slate-400 font-bold">
-                                        {stg.probability}%
-                                      </span>
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Probability Bar */}
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            <div className="w-14 h-1.5 bg-slate-200 rounded-full overflow-hidden relative">
-                              <div
-                                className={`h-full rounded-full transition-all duration-300 ${
-                                  (STAGE_CONFIG.find((s) => s.label.toLowerCase() === (item.stage || '').toLowerCase())?.barColor) || 'bg-amber-500'
-                                }`}
-                                style={{ width: `${Math.max(8, Math.min(100, item.probability ?? 10))}%` }}
-                              />
-                            </div>
-                            <span className="text-[11px] font-bold text-slate-700 font-mono">
-                              {item.probability ?? 10}%
+                      </th>
+                      <th className="py-3 px-2">SL.No</th>
+                      <th className="py-3 px-3">Owner</th>
+                      <th className="py-3 px-3">Opportunity Date</th>
+                      <th className="py-3 px-3">Opportunity Assigned</th>
+                      <th className="py-3 px-3">Opportunity</th>
+                      <th className="py-3 px-3">Customer</th>
+                      <th className="py-3 px-3">Last Activity</th>
+                      <th className="py-3 px-3">Close Date</th>
+                      <th className="py-3 px-3">Stage & Win Probability</th>
+                      <th className="py-3 px-3">Amount</th>
+                      <th className="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredList.length === 0 ? (
+                      <tr>
+                        <td colSpan={12} className="py-20 text-center text-slate-400 font-medium text-xs">
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            <Star className="w-8 h-8 text-slate-300 stroke-[1.5]" />
+                            <span>No opportunities found matching the selected filters.</span>
+                            <span className="text-[11px] text-slate-400">
+                              Click "+ + OPPORTUNITY" to create a new commercial pipeline opportunity.
                             </span>
                           </div>
-                        </div>
-                      </td>
-                      <td className="py-3 px-3 font-bold text-slate-900 text-sm font-sans">
-                        {item.amount?.replace(/AED\s?|\$/g, '') || '0.00'}
-                      </td>
-                      <td className="py-3 px-3 text-right">
-                        <div className="relative inline-block text-left" data-dropdown-container>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setActiveActionId(activeActionId === item.id ? null : item.id)
-                            }
-                            className="px-2.5 py-1.5 rounded-lg bg-[#00607A] hover:bg-[#004e63] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
-                          >
-                            <Settings className="w-3.5 h-3.5" />
-                            <ChevronDown className="w-3 h-3" />
-                          </button>
-
-                          {activeActionId === item.id && (
-                            <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 py-2 px-1 text-left animate-in fade-in duration-100">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenView(item)}
-                                className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
-                              >
-                                <BookOpen className="w-4 h-4 text-slate-600 stroke-[1.8]" />
-                                <span>View</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEdit(item)}
-                                className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
-                              >
-                                <Edit3 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
-                                <span>Edit</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleOpenCreateQuotation(item)}
-                                className="w-full px-3 py-2 text-[13px] text-[#2563EB] hover:bg-blue-50/70 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
-                              >
-                                <FileText className="w-4 h-4 text-[#2563EB] stroke-[1.8]" />
-                                <span>Create Quotation</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => handleOpenAssign(item)}
-                                className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
-                              >
-                                <ExternalLink className="w-4 h-4 text-slate-600 stroke-[1.8]" />
-                                <span>Assign Opportunity</span>
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  handleDelete(item.id, item.name);
-                                  setActiveActionId(null);
-                                }}
-                                className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-rose-50 hover:text-rose-600 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
-                                <span>Delete</span>
-                              </button>
+                        </td>
+                      </tr>
+                    ) : (
+                      pagedList.map((item, idx) => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.includes(item.id)}
+                              onChange={() => handleToggleSelect(item.id)}
+                              className="rounded border-slate-300 text-blue-600 focus:ring-0 cursor-pointer"
+                            />
+                          </td>
+                          <td className="py-3 px-2 font-mono text-slate-400 font-bold text-[11px]">
+                            {String((currentPage - 1) * rowsPerPage + idx + 1).padStart(2, '0')}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${item.ownerAvatarBg || 'bg-[#011635] text-white'}`}>
+                                {(item.owner || 'A')[0]}
+                              </div>
+                              <span className="font-semibold text-slate-700 text-xs">
+                                {item.owner || 'Al Zaydan'}
+                              </span>
                             </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {item.oppDate}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {item.assignedDate}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div
+                              onClick={() => handleOpenView(item)}
+                              className="font-bold text-blue-600 text-xs hover:underline cursor-pointer"
+                            >
+                              {item.name || 'Commercial Opportunity'}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {item.code || 'OPP-0000'} &bull; {item.bizType || 'New Business'}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-bold text-slate-800 text-xs">
+                              {item.customer || 'Enterprise Customer'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="text-slate-600 font-mono text-[11px]">
+                              {item.lastActivity || '16-11-2026'}
+                            </div>
+                            <span className="px-1.5 py-0.2 rounded-md bg-blue-50 text-blue-600 text-[10px] font-bold">
+                              {item.lastActivityDays || 'Today'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {item.closeDate || '28-11-2026'}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex flex-col items-start gap-1">
+                              {/* Clickable Stage Pill with Dropdown */}
+                              <div className="relative inline-block text-left" data-stage-dropdown>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setActiveStageDropdownId(activeStageDropdownId === item.id ? null : item.id);
+                                  }}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow-2xs hover:opacity-90 transition-all cursor-pointer ${(STAGE_CONFIG.find((s) => s.label.toLowerCase() === (item.stage || '').toLowerCase())?.color) || 'bg-[#1D68F2] text-white'
+                                    }`}
+                                  title="Click to change Opportunity Stage"
+                                >
+                                  <Edit3 className="w-3 h-3" />
+                                  <span>{item.stage || 'Enquiry'}</span>
+                                  <ChevronDown className="w-3 h-3 opacity-80" />
+                                </button>
 
-          {/* Table Footer: Showing 0 to N entries + Pagination */}
-          <div className="p-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
-            <div>
-              Showing {filteredList.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to{' '}
-              {Math.min(currentPage * rowsPerPage, filteredList.length)} of {filteredList.length} entries (Total: {opportunities.length})
-            </div>
+                                {/* Dropdown Menu to change stage */}
+                                {activeStageDropdownId === item.id && (
+                                  <div className="absolute left-0 mt-1.5 w-48 bg-white rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-100">
+                                    <div className="px-3 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
+                                      Change Stage
+                                    </div>
+                                    {STAGE_CONFIG.map((stg) => {
+                                      const isSelected = (item.stage || 'Enquiry').toLowerCase() === stg.label.toLowerCase();
+                                      return (
+                                        <button
+                                          key={stg.label}
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleUpdateStage(item.id, stg.label);
+                                            setActiveStageDropdownId(null);
+                                          }}
+                                          className={`w-full text-left px-3 py-1.5 text-xs flex items-center justify-between gap-2 hover:bg-slate-50 transition cursor-pointer font-medium ${isSelected ? 'bg-blue-50 text-blue-700 font-bold' : 'text-slate-700'
+                                            }`}
+                                        >
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs">{stg.icon}</span>
+                                            <span>{stg.label}</span>
+                                          </div>
+                                          <span className="font-mono text-[10px] text-slate-400 font-bold">
+                                            {stg.probability}%
+                                          </span>
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
 
-            <div className="flex items-center gap-1 self-end sm:self-center">
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                disabled={currentPage <= 1}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer text-xs"
-              >
-                Previous
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
-                <button
-                  key={pg}
-                  type="button"
-                  onClick={() => setCurrentPage(pg)}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    currentPage === pg
-                      ? 'bg-[#0055D4] text-white shadow-xs'
-                      : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  {pg}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                disabled={currentPage >= totalPages}
-                className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer text-xs"
-              >
-                Next
-              </button>
+                              {/* Probability Bar */}
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                <div className="w-14 h-1.5 bg-slate-200 rounded-full overflow-hidden relative">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-300 ${(STAGE_CONFIG.find((s) => s.label.toLowerCase() === (item.stage || '').toLowerCase())?.barColor) || 'bg-amber-500'
+                                      }`}
+                                    style={{ width: `${Math.max(8, Math.min(100, item.probability ?? 10))}%` }}
+                                  />
+                                </div>
+                                <span className="text-[11px] font-bold text-slate-700 font-mono">
+                                  {item.probability ?? 10}%
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 font-bold text-slate-900 text-sm font-sans">
+                            {item.amount?.replace(/AED\s?|\$/g, '') || '0.00'}
+                          </td>
+                          <td className="py-3 px-3 text-right">
+                            <div className="relative inline-block text-left" data-dropdown-container>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setActiveActionId(activeActionId === item.id ? null : item.id)
+                                }
+                                className="px-2.5 py-1.5 rounded-lg bg-[#00607A] hover:bg-[#004e63] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors"
+                              >
+                                <Settings className="w-3.5 h-3.5" />
+                                <ChevronDown className="w-3 h-3" />
+                              </button>
+
+                              {activeActionId === item.id && (
+                                <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 py-2 px-1 text-left animate-in fade-in duration-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenView(item)}
+                                    className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  >
+                                    <BookOpen className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                    <span>View</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleOpenPdfPreview(item);
+                                      setActiveActionId(null);
+                                    }}
+                                    className="w-full px-3 py-2 text-[13px] text-[#011635] hover:bg-slate-50 rounded-lg flex items-center gap-3 font-semibold transition cursor-pointer"
+                                  >
+                                    <Printer className="w-4 h-4 text-[#16477A] stroke-[1.8]" />
+                                    <span>Print / PDF</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEdit(item)}
+                                    className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  >
+                                    <Edit3 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                    <span>Edit</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenCreateQuotation(item)}
+                                    className="w-full px-3 py-2 text-[13px] text-[#2563EB] hover:bg-blue-50/70 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  >
+                                    <FileText className="w-4 h-4 text-[#2563EB] stroke-[1.8]" />
+                                    <span>Create Quotation</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenAssign(item)}
+                                    className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  >
+                                    <ExternalLink className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                    <span>Assign Opportunity</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleDelete(item.id, item.name);
+                                      setActiveActionId(null);
+                                    }}
+                                    className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-rose-50 hover:text-rose-600 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  >
+                                    <Trash2 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Table Footer: Showing 0 to N entries + Pagination */}
+              <div className="p-3.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+                <div>
+                  Showing {filteredList.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1} to{' '}
+                  {Math.min(currentPage * rowsPerPage, filteredList.length)} of {filteredList.length} entries (Total: {opportunities.length})
+                </div>
+
+                <div className="flex items-center gap-1 self-end sm:self-center">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={currentPage <= 1}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer text-xs"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pg) => (
+                    <button
+                      key={pg}
+                      type="button"
+                      onClick={() => setCurrentPage(pg)}
+                      className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${currentPage === pg
+                        ? 'bg-[#0055D4] text-white shadow-xs'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                      {pg}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={currentPage >= totalPages}
+                    className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 font-semibold hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer text-xs"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
         </>
-      )}
+      )
+      }
 
       {/* ================= MODAL: + + OPPORTUNITY ================= */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-2">
-                <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
-                <h3 className="font-extrabold text-base text-slate-900">
-                  New Commercial Opportunity
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Opportunity Title / Deal Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Freezone Cold Storage Maintenance 2027"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Customer Account *
-                  </label>
-                  <select
-                    value={formData.customer}
-                    onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
-                  >
-                    <option value="">Select Customer</option>
-                    {customers.map((c) => (
-                      <option key={`legacy-cust-${c.name}`} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+      {
+        isAddModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2">
+                  <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    New Commercial Opportunity
+                  </h3>
                 </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Opportunity Owner *
-                  </label>
-                  <select
-                    value={formData.owner}
-                    onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
-                  >
-                    {ownerOptions.map((owner) => (
-                      <option key={`form-owner-${owner}`} value={owner}>
-                        {owner}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsAddModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <form onSubmit={handleCreateSubmit} className="space-y-3.5 text-xs">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Est. Deal Value (AED) *
+                    Opportunity Title / Deal Name *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="180,000"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none font-bold"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Stage
-                  </label>
-                  <select
-                    value={formData.stage}
-                    onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
-                  >
-                    <option value="Discovery">Discovery</option>
-                    <option value="Proposal">Proposal</option>
-                    <option value="Negotiation">Negotiation</option>
-                    <option value="Closed Won">Closed Won</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Win Prob. (%)
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    value={formData.probability}
-                    onChange={(e) => setFormData({ ...formData, probability: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Expected Close Date
-                  </label>
-                  <input
-                    type="date"
-                    value={formData.closeDate}
-                    onChange={(e) => setFormData({ ...formData, closeDate: e.target.value })}
+                    placeholder="e.g. Freezone Cold Storage Maintenance 2027"
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none"
                   />
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Campaign Source
-                  </label>
-                  <select
-                    value={formData.campaign}
-                    onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
-                  >
-                    <option value="Q4 Industrial Expo">Q4 Industrial Expo</option>
-                    <option value="JAFZA Outreach">JAFZA Outreach</option>
-                    <option value="Direct">Direct</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer"
-                >
-                  Create Opportunity
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ================= MODAL: ASSIGN OPPORTUNITY (Exact Match to Image 3) ================= */}
-      {isAssignModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5">
-            {/* Header: Assign Opportunity | [X] */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="font-bold text-base text-slate-900">
-                Assign Opportunity
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAssignModalOpen(false);
-                  setAssignOppTarget(null);
-                }}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Body: Assign To on left, User Dropdown on right */}
-            <div className="py-2">
-              <div className="grid grid-cols-12 items-center gap-3">
-                <label className="col-span-3 text-xs font-semibold text-slate-800">
-                  Assign To
-                </label>
-                <div className="col-span-9 relative">
-                  <div className="flex items-center gap-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                    <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
-                      {(selectedAssignOwner || 'M')[0]?.toUpperCase()}
-                    </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Customer Account *
+                    </label>
                     <select
-                      value={selectedAssignOwner}
-                      onChange={(e) => setSelectedAssignOwner(e.target.value)}
-                      className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer appearance-none pr-6"
+                      value={formData.customer}
+                      onChange={(e) => setFormData({ ...formData, customer: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
                     >
-                      {availableUsers.map((u) => (
-                        <option key={`assign-opp-${u.id || u.name}`} value={u.name}>
-                          {u.name}
+                      <option value="">Select Customer</option>
+                      {customers.map((c) => (
+                        <option key={`legacy-cust-${c.name}`} value={c.name}>
+                          {c.name}
                         </option>
                       ))}
                     </select>
-                    <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Opportunity Owner *
+                    </label>
+                    <select
+                      value={formData.owner}
+                      onChange={(e) => setFormData({ ...formData, owner: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
+                    >
+                      {ownerOptions.map((owner) => (
+                        <option key={`form-owner-${owner}`} value={owner}>
+                          {owner}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Est. Deal Value (AED) *
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="180,000"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none font-bold"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Stage
+                    </label>
+                    <select
+                      value={formData.stage}
+                      onChange={(e) => setFormData({ ...formData, stage: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
+                    >
+                      <option value="Discovery">Discovery</option>
+                      <option value="Proposal">Proposal</option>
+                      <option value="Negotiation">Negotiation</option>
+                      <option value="Closed Won">Closed Won</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Win Prob. (%)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={formData.probability}
+                      onChange={(e) => setFormData({ ...formData, probability: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Expected Close Date
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.closeDate}
+                      onChange={(e) => setFormData({ ...formData, closeDate: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Campaign Source
+                    </label>
+                    <select
+                      value={formData.campaign}
+                      onChange={(e) => setFormData({ ...formData, campaign: e.target.value })}
+                      className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-[#011635] outline-none cursor-pointer"
+                    >
+                      <option value="Q4 Industrial Expo">Q4 Industrial Expo</option>
+                      <option value="JAFZA Outreach">JAFZA Outreach</option>
+                      <option value="Direct">Direct</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer"
+                  >
+                    Create Opportunity
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+
+      {/* ================= MODAL: ASSIGN OPPORTUNITY (Exact Match to Image 3) ================= */}
+      {
+        isAssignModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5">
+              {/* Header: Assign Opportunity | [X] */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="font-bold text-base text-slate-900">
+                  Assign Opportunity
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAssignModalOpen(false);
+                    setAssignOppTarget(null);
+                  }}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer transition"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body: Assign To on left, User Dropdown on right */}
+              <div className="py-2">
+                <div className="grid grid-cols-12 items-center gap-3">
+                  <label className="col-span-3 text-xs font-semibold text-slate-800">
+                    Assign To
+                  </label>
+                  <div className="col-span-9 relative">
+                    <div className="flex items-center gap-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                        {(selectedAssignOwner || 'M')[0]?.toUpperCase()}
+                      </div>
+                      <select
+                        value={selectedAssignOwner}
+                        onChange={(e) => setSelectedAssignOwner(e.target.value)}
+                        className="w-full bg-transparent text-xs font-semibold text-slate-800 outline-none cursor-pointer appearance-none pr-6"
+                      >
+                        {availableUsers.map((u) => (
+                          <option key={`assign-opp-${u.id || u.name}`} value={u.name}>
+                            {u.name}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 pointer-events-none" />
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Footer Buttons: Close | Update (Green) */}
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsAssignModalOpen(false);
-                  setAssignOppTarget(null);
-                }}
-                className="px-5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer text-xs"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (assignOppTarget) {
-                    setOpportunities((prev) =>
-                      prev.map((o) =>
-                        o.id === assignOppTarget.id
-                          ? { ...o, owner: selectedAssignOwner, opportunityOwner: selectedAssignOwner, salesRep: selectedAssignOwner }
-                          : o
-                      )
-                    );
-                    if (viewTargetOpp && viewTargetOpp.id === assignOppTarget.id) {
-                      setViewTargetOpp((prev) => ({
-                        ...prev,
-                        owner: selectedAssignOwner,
-                        opportunityOwner: selectedAssignOwner,
-                        salesRep: selectedAssignOwner
-                      }));
+              {/* Footer Buttons: Close | Update (Green) */}
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAssignModalOpen(false);
+                    setAssignOppTarget(null);
+                  }}
+                  className="px-5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold transition cursor-pointer text-xs"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (assignOppTarget) {
+                      setOpportunities((prev) =>
+                        prev.map((o) =>
+                          o.id === assignOppTarget.id
+                            ? { ...o, owner: selectedAssignOwner, opportunityOwner: selectedAssignOwner, salesRep: selectedAssignOwner }
+                            : o
+                        )
+                      );
+                      if (viewTargetOpp && viewTargetOpp.id === assignOppTarget.id) {
+                        setViewTargetOpp((prev) => ({
+                          ...prev,
+                          owner: selectedAssignOwner,
+                          opportunityOwner: selectedAssignOwner,
+                          salesRep: selectedAssignOwner
+                        }));
+                      }
+                      toast.success(`Opportunity "${assignOppTarget.name}" assigned to ${selectedAssignOwner}!`);
+                    } else {
+                      toast.success('Opportunity reassignments saved successfully.');
                     }
-                    toast.success(`Opportunity "${assignOppTarget.name}" assigned to ${selectedAssignOwner}!`);
-                  } else {
-                    toast.success('Opportunity reassignments saved successfully.');
-                  }
-                  setIsAssignModalOpen(false);
-                  setAssignOppTarget(null);
-                }}
-                className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer text-xs"
-              >
-                Update
-              </button>
+                    setIsAssignModalOpen(false);
+                    setAssignOppTarget(null);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer text-xs"
+                >
+                  Update
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ================= MODAL: UPLOAD OPPORTUNITY ================= */}
-      {isUploadModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-2">
-                <UploadCloud className="w-5 h-5 text-blue-600" />
-                <h3 className="font-extrabold text-base text-slate-900">
-                  Bulk Upload Opportunities
-                </h3>
+      {
+        isUploadModalOpen && (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2">
+                  <UploadCloud className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-extrabold text-base text-slate-900">
+                    Bulk Upload Opportunities
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsUploadModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 rounded-2xl p-6 text-center transition cursor-pointer bg-slate-50/50">
-              <UploadCloud className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-              <div className="text-xs font-bold text-slate-700">
-                Click or drag CSV/Excel spreadsheet to upload
+              <div className="border-2 border-dashed border-slate-200 hover:border-blue-500 rounded-2xl p-6 text-center transition cursor-pointer bg-slate-50/50">
+                <UploadCloud className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+                <div className="text-xs font-bold text-slate-700">
+                  Click or drag CSV/Excel spreadsheet to upload
+                </div>
+                <div className="text-[11px] text-slate-400 mt-1">
+                  Supported columns: Title, Customer, Value, Stage, Win%, Close Date
+                </div>
               </div>
-              <div className="text-[11px] text-slate-400 mt-1">
-                Supported columns: Title, Customer, Value, Stage, Win%, Close Date
-              </div>
-            </div>
 
-            <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
-              <button
-                type="button"
-                onClick={() => setIsUploadModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer text-xs"
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  toast.success('Sample opportunities imported successfully!');
-                  setIsUploadModalOpen(false);
-                }}
-                className="px-5 py-2 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white font-bold transition shadow-xs cursor-pointer text-xs"
-              >
-                Upload File
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100 mt-5">
+                <button
+                  type="button"
+                  onClick={() => setIsUploadModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer text-xs"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    toast.success('Sample opportunities imported successfully!');
+                    setIsUploadModalOpen(false);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white font-bold transition shadow-xs cursor-pointer text-xs"
+                >
+                  Upload File
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+
+      {/* ================= MODAL: QUICK ADD OPTION (+ NEW) ================= */}
+      {
+        quickAddModal.isOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                <div className="flex items-center gap-2">
+                  <Plus className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    {quickAddModal.title}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setQuickAddModal({ ...quickAddModal, isOpen: false })}
+                  className="w-6 h-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 flex items-center justify-center transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveQuickModal} className="space-y-4 text-xs">
+                {/* Primary Name Field */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    {quickAddModal.type === 'customer'
+                      ? 'Customer / Company Name *'
+                      : quickAddModal.type === 'lead'
+                        ? 'Lead / Project Title *'
+                        : quickAddModal.type === 'owner'
+                          ? 'Owner Full Name *'
+                          : quickAddModal.type === 'businessOpportunity'
+                            ? 'Business Opportunity Name *'
+                            : 'Type Name *'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    value={quickAddModal.name}
+                    onChange={(e) => setQuickAddModal({ ...quickAddModal, name: e.target.value })}
+                    placeholder={
+                      quickAddModal.type === 'customer'
+                        ? 'e.g. Al Habtoor Engineering LLC'
+                        : quickAddModal.type === 'lead'
+                          ? 'e.g. Dubai Marina Tower HVAC Inquiry'
+                          : quickAddModal.type === 'owner'
+                            ? 'e.g. Muhammed Shibil'
+                            : quickAddModal.type === 'businessOpportunity'
+                              ? 'e.g. Industrial Chillers Supply & Overhaul'
+                              : 'e.g. Commercial Retrofit'
+                    }
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                  />
+                </div>
+
+                {/* Extra Field 1: Contact Person / Designation */}
+                {(quickAddModal.type === 'customer' || quickAddModal.type === 'lead' || quickAddModal.type === 'owner') && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      {quickAddModal.type === 'owner' ? 'Designation / Role' : 'Contact Person (Optional)'}
+                    </label>
+                    <input
+                      type="text"
+                      value={quickAddModal.extra1}
+                      onChange={(e) => setQuickAddModal({ ...quickAddModal, extra1: e.target.value })}
+                      placeholder={quickAddModal.type === 'owner' ? 'Sales Executive' : 'e.g. Eng. Tariq Mansoor'}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                    />
+                  </div>
+                )}
+
+                {/* Extra Field 2: Phone */}
+                {(quickAddModal.type === 'customer' || quickAddModal.type === 'lead') && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Phone / Mobile (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={quickAddModal.extra2}
+                      onChange={(e) => setQuickAddModal({ ...quickAddModal, extra2: e.target.value })}
+                      placeholder="+971 50 123 4567"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                    />
+                  </div>
+                )}
+
+                {/* Extra Field 3: Email (for Customer) */}
+                {quickAddModal.type === 'customer' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Email Address (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      value={quickAddModal.extra3}
+                      onChange={(e) => setQuickAddModal({ ...quickAddModal, extra3: e.target.value })}
+                      placeholder="contact@company.com"
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                    />
+                  </div>
+                )}
+
+                {/* Action Buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setQuickAddModal({ ...quickAddModal, isOpen: false })}
+                    className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-[#011635] hover:bg-[#07244a] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Save & Select</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )
+      }
+
+      {/* ============================================================== */}
+      {/* COMMERCIAL OPPORTUNITY PDF DOCUMENT PREVIEW MODAL               */}
+      {/* ============================================================== */}
+      <CommercialDocumentPdfModal
+        isOpen={pdfPreviewModal.isOpen}
+        onClose={handleClosePdfPreview}
+        docType="OPPORTUNITY"
+        data={pdfPreviewModal.data}
+      />
+    </div >
   );
 }

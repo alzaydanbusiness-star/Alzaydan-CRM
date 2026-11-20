@@ -18,6 +18,7 @@ import {
   BadgeDollarSign
 } from 'lucide-react';
 import { AlZaydanCrest } from '../../../components/AlZaydanLogo';
+import { isSalesExecutive } from '../../../utils/userDirectory';
 
 export default function Sidebar({
   activeNav,
@@ -32,6 +33,14 @@ export default function Sidebar({
   // Dropdown state: open only when clicking or navigating to Customer/Sales, collapsed on Dashboard & others
   const [userToggledNav, setUserToggledNav] = useState(null);
   const [prevActiveNav, setPrevActiveNav] = useState(activeNav);
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('alzaydan_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
   const [currentRole, setCurrentRole] = useState(() => {
     try {
       const stored = localStorage.getItem('alzaydan_current_user');
@@ -49,6 +58,7 @@ export default function Sidebar({
         const stored = localStorage.getItem('alzaydan_current_user');
         if (stored) {
           const u = JSON.parse(stored);
+          setCurrentUser(u);
           setCurrentRole(u.role || u.designation || 'International FZE');
         }
       } catch {}
@@ -60,6 +70,8 @@ export default function Sidebar({
       window.removeEventListener('storage', handleUpdate);
     };
   }, []);
+
+  const isRep = isSalesExecutive(currentUser);
 
   if (activeNav !== prevActiveNav) {
     setPrevActiveNav(activeNav);
@@ -104,7 +116,7 @@ export default function Sidebar({
         { label: 'Receipt', subTab: 'Receipt', tab: 'Sales', icon: BadgeDollarSign }
       ]
     },
-    { name: 'User', tab: 'Employees', icon: Users },
+    ...(!isRep ? [{ name: 'User', tab: 'Employees', icon: Users }] : []),
     {
       name: 'Purchase',
       tab: 'Purchase',

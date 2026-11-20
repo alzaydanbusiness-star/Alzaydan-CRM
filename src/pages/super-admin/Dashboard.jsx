@@ -25,7 +25,7 @@ import CustomerManager from './customers/CustomerManager';
 import ReportManager from './reports/ReportManager';
 import UsersDirectoryView from './users/UsersDirectoryView';
 import SettingsView from './settings/SettingsView';
-import { getStoredUsers } from '../../utils/userDirectory';
+import { getStoredUsers, isSalesExecutive, filterTasksByRole } from '../../utils/userDirectory';
 
 export default function SuperAdminDashboard({
   initialNav = 'Dashboard',
@@ -35,8 +35,51 @@ export default function SuperAdminDashboard({
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('alzaydan_current_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const stored = localStorage.getItem('alzaydan_current_user');
+        if (stored) setCurrentUser(JSON.parse(stored));
+        setEmployees(getStoredUsers());
+        const savedTasks = localStorage.getItem('alzaydan_crm_task_list');
+        if (savedTasks) setTasks(JSON.parse(savedTasks));
+      } catch {}
+    };
+    window.addEventListener('alzaydan_user_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('alzaydan_user_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const isRep = isSalesExecutive(currentUser);
+
   // Navigation & UI State
-  const [activeNav, setActiveNav] = useState(initialNav);
+  const [activeNav, setActiveNav] = useState(() => {
+    if (isSalesExecutive(currentUser) && (initialNav === 'Employees' || initialNav === 'Users')) {
+      return 'Dashboard';
+    }
+    return initialNav;
+  });
+
+  // Guard against Sales Executives accessing /employees or /users
+  useEffect(() => {
+    if (isRep && (activeNav === 'Employees' || activeNav === 'Users' || location.pathname === '/employees' || location.pathname === '/users')) {
+      setActiveNav('Dashboard');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isRep, activeNav, location.pathname, navigate]);
+
   useEffect(() => {
     const routeByNav = {
       Dashboard: '/dashboard',
@@ -59,13 +102,20 @@ export default function SuperAdminDashboard({
   const [customerSubTab, setCustomerSubTab] = useState(initialCustomerSubTab);
 
   // Interactive Live Data States (Initialized safely, preserving existing user data)
-  const [tasks, setTasks] = useState([]);
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_task_list');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [leads, setLeads] = useState(() => {
     try {
       const saved = localStorage.getItem('alzaydan_crm_leads');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
@@ -75,9 +125,9 @@ export default function SuperAdminDashboard({
   const [customers, setCustomers] = useState(() => {
     try {
       const saved = localStorage.getItem('alzaydan_crm_customers');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
     return [];
@@ -105,9 +155,9 @@ export default function SuperAdminDashboard({
     return [];
   });
 
-  // Sync state to localStorage safely when non-empty (never wiping)
+  // Sync state to localStorage safely (persisting empty list when items are deleted)
   useEffect(() => {
-    if (Array.isArray(leads) && leads.length > 0) {
+    if (Array.isArray(leads)) {
       try {
         localStorage.setItem('alzaydan_crm_leads', JSON.stringify(leads));
       } catch {}
@@ -115,7 +165,7 @@ export default function SuperAdminDashboard({
   }, [leads]);
 
   useEffect(() => {
-    if (Array.isArray(opportunities) && opportunities.length > 0) {
+    if (Array.isArray(opportunities)) {
       try {
         localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(opportunities));
       } catch {}
@@ -123,12 +173,40 @@ export default function SuperAdminDashboard({
   }, [opportunities]);
 
   useEffect(() => {
-    if (Array.isArray(customers) && customers.length > 0) {
+    if (Array.isArray(customers)) {
       try {
         localStorage.setItem('alzaydan_crm_customers', JSON.stringify(customers));
       } catch {}
     }
   }, [customers]);
+
+  // Synchronize in-memory Dashboard state when leads or customers are updated/deleted elsewhere
+  useEffect(() => {
+    const handleLeadSync = () => {
+      try {
+        const saved = localStorage.getItem('alzaydan_crm_leads');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setLeads(parsed);
+        }
+      } catch {}
+    };
+    const handleCustSync = () => {
+      try {
+        const saved = localStorage.getItem('alzaydan_crm_customers');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setCustomers(parsed);
+        }
+      } catch {}
+    };
+    window.addEventListener('alzaydan_lead_updated', handleLeadSync);
+    window.addEventListener('alzaydan_customer_updated', handleCustSync);
+    return () => {
+      window.removeEventListener('alzaydan_lead_updated', handleLeadSync);
+      window.removeEventListener('alzaydan_customer_updated', handleCustSync);
+    };
+  }, []);
 
   // Modal States for Quick Actions
   const [activeModal, setActiveModal] = useState(null); // 'add-employee' | 'create-lead' | 'add-customer' | 'create-task'
@@ -140,9 +218,17 @@ export default function SuperAdminDashboard({
 
   // Task Toggle Handler
   const handleToggleTask = (taskId) => {
-    setTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, completed: !t.completed } : t))
-    );
+    setTasks((prev) => {
+      const updated = prev.map((t) =>
+        t.id === taskId
+          ? { ...t, completed: !t.completed, status: !t.completed ? 'Completed' : 'Pending' }
+          : t
+      );
+      try {
+        localStorage.setItem('alzaydan_crm_task_list', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   // Full Employee Registration Handler
@@ -285,6 +371,8 @@ export default function SuperAdminDashboard({
                 leadsCount={leads.length}
                 customersCount={customers.length}
                 salesAmount={0}
+                opportunitiesCount={opportunities.length}
+                isSalesExecutive={isRep}
               />
 
               {/* Row 2: Commercial Sales Pipeline by Stage (Matching Reference) */}
@@ -300,7 +388,7 @@ export default function SuperAdminDashboard({
                 </div>
                 <div className="lg:col-span-5">
                   <PendingTasks
-                    tasks={tasks}
+                    tasks={filterTasksByRole(tasks, currentUser)}
                     onToggleTask={handleToggleTask}
                     onViewAll={() => setActiveNav('Tasks')}
                   />
@@ -309,8 +397,8 @@ export default function SuperAdminDashboard({
             </>
           )}
 
-          {/* Active Navigation: Employees / Users Directory View (Matching Reference Image 1) */}
-          {(activeNav === 'Employees' || activeNav === 'Users') && (
+          {/* Active Navigation: Employees / Users Directory View (Matching Reference Image 1 - Restricted to Admin/Manager) */}
+          {(activeNav === 'Employees' || activeNav === 'Users') && !isRep && (
             <UsersDirectoryView />
           )}
 

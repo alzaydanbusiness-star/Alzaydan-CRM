@@ -68,6 +68,50 @@ const LOCATION_OPTIONS = [
   'Other'
 ];
 
+// Helper to normalize and ensure customer records have all standard fields
+export const normalizeCustomer = (cust, index = 0, defaultOwner = 'Super Admin') => {
+  if (!cust) return cust;
+  const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+  const custName = (cust.name || cust.customerName || cust.company || 'Commercial Client').trim();
+  const pContact = (cust.primaryContact || cust.contactPerson || custName).trim();
+  const phone = (cust.contactPhone || cust.phone || cust.tel || '+971 50 123 4567').trim();
+  const email = (cust.email || cust.contactEmail || 'info@client.ae').trim();
+  const ownerName = cust.owner && cust.owner !== 'Unassigned' ? cust.owner : (defaultOwner || 'Super Admin');
+  const code = cust.code || `AZ-CUST-${100 + index + 1}`;
+  const date = cust.date || cust.createdAt || todayStr;
+  const industry = cust.industry || 'Commercial Trading';
+  const openEnquiries = cust.openEnquiries || '1 Enquiry';
+  const lastEnquiry = cust.lastEnquiry || date || 'Today';
+  const lastOrder = cust.lastOrder || 'N/A';
+  const outstanding = cust.outstanding || 'AED 0.00';
+  const ownerAvatarBg = cust.ownerAvatarBg || 'bg-[#011635] text-white';
+
+  return {
+    ...cust,
+    id: cust.id || Date.now() + index,
+    code,
+    date,
+    name: custName,
+    company: cust.company || custName,
+    customerName: custName,
+    owner: ownerName,
+    ownerAvatarBg,
+    primaryContact: pContact,
+    contactPerson: pContact,
+    contactPhone: phone,
+    phone,
+    email,
+    contactEmail: email,
+    industry,
+    lastEnquiry,
+    openEnquiries,
+    lastOrder,
+    outstanding,
+    status: cust.status || 'Active',
+    type: cust.type || 'Customer'
+  };
+};
+
 export default function CustomerManager({
   activeTab = 'Customer', // 'Customer' | 'Contact'
   setActiveTab = () => {},
@@ -123,30 +167,54 @@ export default function CustomerManager({
 
   const defaultOwner = availableUsers[0]?.name || 'shemin';
 
-  // Live Customer Records
+  // Live Customer Records (always normalized)
   const [customerList, setCustomerList] = useState(() => {
-    if (Array.isArray(customers) && customers.length > 0) return customers;
+    let raw = [];
     try {
       const saved = localStorage.getItem('alzaydan_crm_customers');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) raw = parsed;
+      } else if (Array.isArray(customers) && customers.length > 0) {
+        raw = customers;
       }
     } catch {}
-    return [];
+    return raw.map((c, i) => normalizeCustomer(c, i, defaultOwner));
   });
 
-  // Sync customerList to localStorage and setCustomers
+  // Auto-heal incomplete records (e.g. Al ethihad) and save complete schema once on mount
   useEffect(() => {
-    if (customerList.length > 0) {
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_customers');
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const healed = parsed.map((c, i) => normalizeCustomer(c, i, defaultOwner));
+          if (JSON.stringify(healed) !== saved) {
+            setCustomerList(healed);
+            localStorage.setItem('alzaydan_crm_customers', JSON.stringify(healed));
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Synchronize when customer updates occur in other views (e.g. from Add Lead or Opportunity)
+  useEffect(() => {
+    const handleSync = () => {
       try {
-        localStorage.setItem('alzaydan_crm_customers', JSON.stringify(customerList));
+        const saved = localStorage.getItem('alzaydan_crm_customers');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setCustomerList(parsed.map((c, i) => normalizeCustomer(c, i, defaultOwner)));
+          }
+        }
       } catch {}
-    }
-    if (typeof setCustomers === 'function') {
-      setCustomers(customerList);
-    }
-  }, [customerList, setCustomers]);
+    };
+    window.addEventListener('alzaydan_customer_updated', handleSync);
+    return () => window.removeEventListener('alzaydan_customer_updated', handleSync);
+  }, []);
 
   // Initial Add Customer Form state (Customer Name, Email, Location, Address, TRN Number, Country)
   const initialAddCustomerForm = {
@@ -321,8 +389,17 @@ export default function CustomerManager({
   };
 
   const handleDeleteCustomer = (id, name) => {
-    setCustomerList((prev) => prev.filter((c) => c.id !== id));
+    const updated = customerList.filter(
+      (c) => String(c.id) !== String(id) && (c.name || '').toLowerCase() !== (name || '').toLowerCase()
+    );
+    setCustomerList(updated);
     setActiveCustActionId(null);
+    try {
+      localStorage.setItem('alzaydan_crm_customers', JSON.stringify(updated));
+      if (typeof setCustomers === 'function') {
+        setCustomers(updated);
+      }
+    } catch {}
     toast.success(`Customer "${name}" removed`);
   };
 
@@ -411,7 +488,13 @@ export default function CustomerManager({
   };
 
   const handleDeleteContact = (id, name) => {
-    setContactList((prev) => prev.filter((c) => c.id !== id));
+    setContactList((prev) => {
+      const updated = prev.filter((c) => String(c.id) !== String(id) && (c.name || '').toLowerCase() !== (name || '').toLowerCase());
+      try {
+        localStorage.setItem('alzaydan_crm_contacts', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
     setActiveContActionId(null);
     toast.success(`Contact "${name}" removed`);
   };
@@ -1131,54 +1214,54 @@ export default function CustomerManager({
                     </tr>
                   ) : (
                     pagedCustomers.map((cust, idx) => (
-                      <tr key={cust.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-3 px-3 font-mono text-slate-400 font-bold text-[11px]">
-                          {String((custCurrentPage - 1) * custRowsPerPage + idx + 1).padStart(2, '0')}
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                          {cust.date}
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-slate-800 text-xs">
-                            {cust.name}
-                          </div>
-                          <div className="text-[10px] text-slate-400 font-mono">
-                            {cust.code} &bull; {cust.industry}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${cust.ownerAvatarBg}`}>
-                              {cust.owner[0]}
+                      <tr key={cust.id || `cust-${idx}`} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-3 font-mono text-slate-400 font-bold text-[11px]">
+                            {String((custCurrentPage - 1) * custRowsPerPage + idx + 1).padStart(2, '0')}
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {cust.date}
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-slate-800 text-xs">
+                              {cust.name}
                             </div>
-                            <span className="font-semibold text-slate-700 text-xs">
-                              {cust.owner}
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {cust.code} {cust.industry ? `• ${cust.industry}` : ''}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${cust.ownerAvatarBg}`}>
+                                {(cust.owner || 'S')[0].toUpperCase()}
+                              </div>
+                              <span className="font-semibold text-slate-700 text-xs">
+                                {cust.owner}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <div className="font-bold text-blue-600 text-xs">
+                              {cust.primaryContact}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-mono">
+                              {cust.contactPhone}
+                            </div>
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {cust.lastEnquiry}
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              {cust.openEnquiries || '0 Enquiries'}
                             </span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="font-bold text-blue-600 text-xs">
-                            {cust.primaryContact}
-                          </div>
-                          <div className="text-[10px] text-slate-400">
-                            {cust.contactPhone}
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                          {cust.lastEnquiry}
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            {cust.openEnquiries}
-                          </span>
-                        </td>
-                        <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
-                          {cust.lastOrder}
-                        </td>
-                        <td className="py-3 px-3 font-bold text-emerald-700">
-                          {cust.outstanding}
-                        </td>
-                        <td className="py-3 px-3 text-right">
+                          </td>
+                          <td className="py-3 px-3 text-slate-600 font-mono text-[11px]">
+                            {cust.lastOrder}
+                          </td>
+                          <td className="py-3 px-3 font-bold text-emerald-700 font-mono text-xs">
+                            {cust.outstanding}
+                          </td>
+                          <td className="py-3 px-3 text-right">
                           <div className="relative inline-block text-left">
                             <button
                               type="button"
@@ -1500,10 +1583,10 @@ export default function CustomerManager({
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5">
                             <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold ${item.ownerAvatarBg}`}>
-                              {item.owner[0]}
+                              {(item.owner || 'U')[0]}
                             </div>
                             <span className="font-semibold text-slate-700 text-xs">
-                              {item.owner}
+                              {item.owner || 'Unassigned'}
                             </span>
                           </div>
                         </td>
@@ -1840,7 +1923,7 @@ export default function CustomerManager({
       {/* ================= MODAL: VIEW CUSTOMER DETAIL ================= */}
       {selectedCustDetail && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <Building className="w-5 h-5 text-[#011635]" />
@@ -1862,31 +1945,38 @@ export default function CustomerManager({
             </div>
 
             <div className="space-y-3.5 text-xs">
-              <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Account Type</span>
-                  <div className="font-semibold text-slate-800">{selectedCustDetail.type}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Account Owner</span>
-                  <div className="font-semibold text-slate-800">{selectedCustDetail.owner}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Primary Contact</span>
-                  <div className="font-semibold text-slate-800">{selectedCustDetail.primaryContact}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Phone</span>
-                  <div className="font-semibold text-slate-800">{selectedCustDetail.contactPhone}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Last Order</span>
-                  <div className="font-semibold text-slate-800">{selectedCustDetail.lastOrder}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase text-slate-400">Outstanding Balance</span>
-                  <div className="font-bold text-emerald-700">{selectedCustDetail.outstanding}</div>
-                </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                {[
+                  ['Customer Code', selectedCustDetail.code],
+                  ['Account Type', selectedCustDetail.type],
+                  ['Industry', selectedCustDetail.industry],
+                  ['Account Owner', selectedCustDetail.owner],
+                  ['Primary Contact', selectedCustDetail.primaryContact],
+                  ['Contact Phone', selectedCustDetail.contactPhone || selectedCustDetail.phone || selectedCustDetail.tel],
+                  ['Contact Email', selectedCustDetail.contactEmail || selectedCustDetail.email],
+                  ['Website', selectedCustDetail.website],
+                  ['Country', selectedCustDetail.country],
+                  ['Location', selectedCustDetail.location || selectedCustDetail.stateRegion],
+                  ['Address', selectedCustDetail.address],
+                  ['TRN / Tax Number', selectedCustDetail.trn],
+                  ['Campaign', selectedCustDetail.campaign],
+                  ['Source', selectedCustDetail.source],
+                  ['Source Name', selectedCustDetail.sourceName],
+                  ['Tags', selectedCustDetail.tags],
+                  ['Key Customer', selectedCustDetail.isKeyCustomer ? 'Yes' : 'No'],
+                  ['Created Date', selectedCustDetail.date],
+                  ['Last Enquiry', selectedCustDetail.lastEnquiry],
+                  ['Open Enquiries', selectedCustDetail.openEnquiries],
+                  ['Last Order', selectedCustDetail.lastOrder],
+                  ['Outstanding Balance', selectedCustDetail.outstanding]
+                ].map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">{label}</span>
+                    <div className={`font-semibold text-slate-800 break-words ${label === 'Outstanding Balance' ? 'text-emerald-700' : ''}`}>
+                      {value === true ? 'Yes' : value === false ? 'No' : value || '—'}
+                    </div>
+                  </div>
+                ))}
               </div>
 
               <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">

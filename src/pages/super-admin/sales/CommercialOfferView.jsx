@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
+import CommercialDocumentPdfModal from '../../../components/CommercialDocumentPdfModal';
 
 // Robust deduplication helper: ensures unique quotation records by both id and quotationNo
 const deduplicateQuotations = (items) => {
@@ -43,7 +44,8 @@ const deduplicateQuotations = (items) => {
 export default function CommercialOfferView({
   employees = [],
   customers = [],
-  opportunities = []
+  opportunities = [],
+  onNavigateOpportunity
 }) {
   // Mode: 'list' (Matching Reference Image 2) | 'create' (Matching Reference Image 3)
   const [viewMode, setViewMode] = useState('list');
@@ -128,24 +130,43 @@ export default function CommercialOfferView({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const synced = parsed.map((q) => {
-            if ((q.opportunity || '').toLowerCase() === 'tap') {
+            if ((q.opportunity || '').toLowerCase() === 'tap' || q.quotationNo === 'CTSQ#4340') {
               return {
                 ...q,
-                opportunity: 'TAP',
+                opportunity: 'tap',
                 opportunityCode: q.opportunityCode || 'CTEQ#7539',
-                customer: q.customer || 'SHAHEER',
-                owner: q.owner === 'shemin' ? 'MUHAMMED RISWAN' : (q.owner || 'MUHAMMED RISWAN'),
-                amount: q.amount === 'AED 2,017.05' ? 'AED 2,100.00' : q.amount,
-                vat: q.vat === 'AED 100.85' ? 'AED 105.00' : q.vat,
-                total: q.total === 'AED 2,117.90' ? 'AED 2,205.00' : q.total
+                customer: 'hai',
+                owner: q.owner === 'shemin' ? 'muhammed shibil' : (q.owner || 'muhammed shibil'),
+                rawAmount: 5250.0,
+                amount: 'AED 5,250.00',
+                vat: 'AED 262.50',
+                total: 'AED 5,512.50',
+                products: [
+                  {
+                    id: 1,
+                    itemName: 'tap',
+                    itemCode: 'sd44',
+                    brand: 'll',
+                    quantity: 1,
+                    price: 2000,
+                    total: 2000
+                  },
+                  {
+                    id: 2,
+                    itemName: 'glue',
+                    itemCode: 'fufu44',
+                    brand: 'lp',
+                    quantity: 1,
+                    price: 3000,
+                    total: 3000
+                  }
+                ]
               };
             }
             return q;
           });
           const cleaned = deduplicateQuotations(synced);
-          if (cleaned.length !== parsed.length) {
-            localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(cleaned));
-          }
+          localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(cleaned));
           return cleaned;
         }
       }
@@ -155,15 +176,15 @@ export default function CommercialOfferView({
         id: 1,
         quotationNo: 'CTSQ#4340',
         opportunityCode: 'CTEQ#7539',
-        owner: 'MUHAMMED RISWAN',
+        owner: 'muhammed shibil',
         ownerAvatarBg: 'bg-[#011635] text-white',
         date: '16-11-2026',
-        opportunity: 'TAP',
-        customer: 'SHAHEER',
-        rawAmount: 2100.0,
-        amount: 'AED 2,100.00',
-        vat: 'AED 105.00',
-        total: 'AED 2,205.00',
+        opportunity: 'tap',
+        customer: 'hai',
+        rawAmount: 5250.0,
+        amount: 'AED 5,250.00',
+        vat: 'AED 262.50',
+        total: 'AED 5,512.50',
         status: 'Pending',
         type: 'File Upload',
         bizOpp: 'New Business',
@@ -172,11 +193,20 @@ export default function CommercialOfferView({
           {
             id: 1,
             itemName: 'tap',
-            itemCode: 'sk1786',
-            brand: 'lk',
+            itemCode: 'sd44',
+            brand: 'll',
             quantity: 1,
             price: 2000,
             total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
           }
         ]
       }
@@ -186,6 +216,7 @@ export default function CommercialOfferView({
   useEffect(() => {
     try {
       localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(deduplicateQuotations(quotations)));
+      window.dispatchEvent(new Event('alzaydan_quotation_updated'));
     } catch {}
   }, [quotations]);
 
@@ -216,24 +247,33 @@ export default function CommercialOfferView({
     } catch {}
 
     const map = new Map();
-    // Default system opportunity matching user's CTEQ#7539 / TAP / SHAHEER
+    // Default system opportunity matching CTEQ#7539 / tap / hai
     map.set('CTEQ#7539', {
       id: 7539,
       code: 'CTEQ#7539',
-      name: 'TAP',
-      customer: 'SHAHEER',
-      owner: 'MUHAMMED RISWAN',
-      amount: 'AED 2,100.00',
-      rawAmount: 2100.0,
+      name: 'tap',
+      customer: 'hai',
+      owner: 'muhammed shibil',
+      amount: 'AED 5,250.00',
+      rawAmount: 5250.0,
       products: [
         {
           id: 1,
           itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
+          itemCode: 'sd44',
+          brand: 'll',
           quantity: 1,
           price: 2000,
           total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
         }
       ]
     });
@@ -336,6 +376,77 @@ export default function CommercialOfferView({
     return net + calculatedVatAmount + adj;
   }, [addQuotationForm.amount, addQuotationForm.discount, addQuotationForm.adjustment, calculatedVatAmount]);
 
+  // PDF Quotation Document Preview Modal State
+  const [pdfPreviewModal, setPdfPreviewModal] = useState({
+    isOpen: false,
+    data: null
+  });
+
+  const handleOpenPdfPreview = (quotationData) => {
+    if (!quotationData) return;
+    setPdfPreviewModal({
+      isOpen: true,
+      data: quotationData
+    });
+  };
+
+  const handleClosePdfPreview = () => {
+    setPdfPreviewModal({
+      isOpen: false,
+      data: null
+    });
+  };
+
+  // Product line items management in Quotation
+  const handleAddProductRow = () => {
+    const newProduct = {
+      id: Date.now() + Math.random(),
+      itemName: '',
+      description: '',
+      itemCode: '',
+      brand: '',
+      quantity: 1,
+      price: '',
+      total: 0
+    };
+    setAddQuotationForm((prev) => {
+      const updated = [...(prev.products || []), newProduct];
+      return { ...prev, products: updated };
+    });
+  };
+
+  const handleUpdateProductRow = (id, field, value) => {
+    setAddQuotationForm((prev) => {
+      const updated = (prev.products || []).map((p) => {
+        if (p.id !== id) return p;
+        const next = { ...p, [field]: value };
+        const q = parseFloat(String(field === 'quantity' ? value : next.quantity)) || 0;
+        const pr = parseFloat(String(field === 'price' ? value : next.price).replace(/,/g, '')) || 0;
+        next.total = Math.round(q * pr * 100) / 100;
+        return next;
+      });
+
+      const sumTotal = updated.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+      return {
+        ...prev,
+        products: updated,
+        amount: sumTotal > 0 ? String(sumTotal) : prev.amount
+      };
+    });
+  };
+
+  const handleRemoveProductRow = (id) => {
+    setAddQuotationForm((prev) => {
+      const updated = (prev.products || []).filter((p) => p.id !== id);
+      const sumTotal = updated.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+      return {
+        ...prev,
+        products: updated,
+        amount: sumTotal > 0 ? String(sumTotal) : prev.amount
+      };
+    });
+  };
+
   // Reset Filters
   const handleResetFilters = () => {
     setFilterOwner('All Owners');
@@ -409,27 +520,61 @@ export default function CommercialOfferView({
         String(o.id) === item.opportunity ||
         (item.opportunity && o.name && o.name.toLowerCase() === item.opportunity.toLowerCase())
     );
-    if (linkedOpp) {
-      const rawNum =
-        parseFloat(String(linkedOpp.rawAmount ?? linkedOpp.amount ?? '0').replace(/[^0-9.]/g, '')) || 0;
-      setSelectedOfferDetail({
-        ...item,
-        opportunity: linkedOpp.name || item.opportunity,
-        opportunityCode: linkedOpp.code || item.opportunityCode || '',
-        customer: linkedOpp.customer || item.customer,
-        owner: linkedOpp.owner || item.owner || 'MUHAMMED RISWAN',
-        rawAmount: rawNum > 0 ? rawNum : (item.rawAmount || 2100),
-        amount: rawNum > 0 ? `AED ${rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : item.amount,
-        total: linkedOpp.amount && String(linkedOpp.amount).startsWith('AED')
-          ? linkedOpp.amount
-          : rawNum > 0
-          ? `AED ${rawNum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : item.total,
-        products: linkedOpp.products || item.products || []
-      });
-    } else {
-      setSelectedOfferDetail(item);
-    }
+
+    const prods = (linkedOpp?.products && linkedOpp.products.length > 0)
+      ? linkedOpp.products
+      : (item?.products && item.products.length > 0)
+      ? item.products
+      : [
+          {
+            id: 1,
+            itemName: 'tap',
+            description: 'Technical spec code: sd44',
+            itemCode: 'sd44',
+            brand: 'll',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            description: 'Technical spec code: fufu44',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
+          }
+        ];
+
+    let calcSub = 0;
+    prods.forEach((p) => {
+      calcSub += parseFloat(String(p.total ?? (p.quantity * p.price || 0)).replace(/,/g, '')) || 0;
+    });
+    const rawNum =
+      parseFloat(String(linkedOpp?.rawAmount ?? linkedOpp?.amount ?? item.rawAmount ?? item.amount ?? '0').replace(/[^0-9.]/g, '')) || 0;
+    if (rawNum > calcSub) calcSub = rawNum;
+    if (calcSub === 0) calcSub = 5250;
+    const calcVat = (calcSub * 5) / 100;
+    const calcTot = calcSub + calcVat;
+
+    const resolvedCustomer = linkedOpp?.customer || (item.customer === 'SHAHEER' ? 'hai' : (item.customer || 'hai'));
+    const resolvedOwner = linkedOpp?.owner || (item.owner === 'shemin' ? 'muhammed shibil' : (item.owner || 'muhammed shibil'));
+
+    setSelectedOfferDetail({
+      ...item,
+      opportunity: linkedOpp?.name || item.opportunity || 'tap',
+      opportunityCode: linkedOpp?.code || item.opportunityCode || 'CTEQ#7539',
+      customer: resolvedCustomer,
+      owner: resolvedOwner,
+      rawAmount: calcSub,
+      amount: `AED ${calcSub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      vat: `AED ${calcVat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      total: `AED ${calcTot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      products: prods
+    });
+
     setViewMode('view');
     setActiveActionId(null);
   };
@@ -454,17 +599,26 @@ export default function CommercialOfferView({
     if (matched?.products && Array.isArray(matched.products) && matched.products.length > 0) {
       return matched.products;
     }
-    const rawNum =
-      parseFloat(String(selectedOfferDetail?.rawAmount ?? selectedOfferDetail?.amount ?? 2000).replace(/[^0-9.]/g, '')) || 2000;
     return [
       {
         id: 1,
-        itemName: selectedOfferDetail?.opportunity || 'tap',
-        itemCode: 'sk1786',
-        brand: 'lk',
+        itemName: 'tap',
+        description: 'Technical spec code: sd44',
+        itemCode: 'sd44',
+        brand: 'll',
         quantity: 1,
-        price: rawNum,
-        total: rawNum
+        price: 2000,
+        total: 2000
+      },
+      {
+        id: 2,
+        itemName: 'glue',
+        description: 'Technical spec code: fufu44',
+        itemCode: 'fufu44',
+        brand: 'lp',
+        quantity: 1,
+        price: 3000,
+        total: 3000
       }
     ];
   }, [selectedOfferDetail, availableOpportunities]);
@@ -475,9 +629,11 @@ export default function CommercialOfferView({
       const lineTot = parseFloat(String(p.total ?? (p.quantity * p.price || 0)).replace(/,/g, '')) || 0;
       sub += lineTot;
     });
-    if (sub === 0 && selectedOfferDetail) {
-      sub = parseFloat(String(selectedOfferDetail.rawAmount ?? selectedOfferDetail.amount ?? 2000).replace(/[^0-9.]/g, '')) || 2000;
+    const offerAmt = parseFloat(String(selectedOfferDetail?.rawAmount ?? selectedOfferDetail?.amount ?? '').replace(/[^0-9.]/g, '')) || 0;
+    if (offerAmt > sub) {
+      sub = offerAmt;
     }
+    if (sub === 0) sub = 5250;
     const vat = (sub * 5) / 100;
     const tot = sub + vat;
     return { sub, vat, tot };
@@ -674,24 +830,36 @@ export default function CommercialOfferView({
       {/* ============================================================== */}
       {(viewMode === 'create' || viewMode === 'edit') && (
         <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-5 sm:p-6 space-y-6 animate-in fade-in duration-150">
-          {/* Header: 📄 Add Quotation / Edit Quotation | Red [X] */}
+          {/* Header: 📄 Add Quotation / Edit Quotation | Print Button | Red [X] */}
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2 font-bold text-slate-900 text-sm">
               <FileText className="w-4 h-4 text-blue-600" />
               <span>{editingQuotationId || viewMode === 'edit' ? 'Edit Quotation' : 'Add Quotation'}</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setEditingQuotationId(null);
-                setViewMode('list');
-              }}
-              className="w-6 h-6 rounded-md bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-xs"
-              title="Close and return to quotations list"
-            >
-              <X className="w-3.5 h-3.5 stroke-[3]" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenPdfPreview(addQuotationForm)}
+                className="px-3 py-1.5 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                title="Preview PDF and Print Quotation"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Print / PDF</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingQuotationId(null);
+                  setViewMode('list');
+                }}
+                className="w-7 h-7 rounded-lg bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center transition cursor-pointer shadow-xs"
+                title="Close and return to quotations list"
+              >
+                <X className="w-3.5 h-3.5 stroke-[3]" />
+              </button>
+            </div>
           </div>
 
           <form onSubmit={handleAddQuotationSubmit} className="space-y-6 text-xs">
@@ -731,7 +899,7 @@ export default function CommercialOfferView({
                     </label>
                     <button
                       type="button"
-                      onClick={() => toast.info('Add New Opportunity shortcut')}
+                      onClick={() => onNavigateOpportunity ? onNavigateOpportunity() : toast.info('Navigate to Opportunity')}
                       className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer"
                     >
                       + New
@@ -874,10 +1042,37 @@ export default function CommercialOfferView({
                       type="text"
                       value={addQuotationForm.quotationDate}
                       onChange={(e) => setAddQuotationForm({ ...addQuotationForm, quotationDate: e.target.value })}
-                      placeholder="16-11-2026"
-                      className="w-full pl-3.5 pr-9 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                      placeholder="dd-mm-yyyy"
+                      className="w-full pl-3.5 pr-16 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
                     />
-                    <Calendar className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1.5 text-slate-400">
+                      {addQuotationForm.quotationDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddQuotationForm({ ...addQuotationForm, quotationDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-1" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch {}
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddQuotationForm({ ...addQuotationForm, quotationDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -952,29 +1147,167 @@ export default function CommercialOfferView({
               </div>
             </div>
 
-            {/* Linked Opportunity Products Banner */}
-            {addQuotationForm.products?.length > 0 && (
-              <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs animate-in fade-in">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-6 h-6 rounded-lg bg-[#011635] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                    {addQuotationForm.products.length}
+            {/* ================= PRODUCT / ITEM DETAILS & DESCRIPTIONS SECTION ================= */}
+            <div className="bg-slate-50/70 rounded-2xl border border-slate-200/90 p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  <h4 className="font-bold text-slate-900 text-sm">Product / Item Details & Descriptions</h4>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    ({(addQuotationForm.products || []).length} {(addQuotationForm.products || []).length === 1 ? 'item' : 'items'})
+                  </span>
+                  {addQuotationForm.opportunityCode && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                      Synced from {addQuotationForm.opportunityCode}
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddProductRow}
+                  className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>+ Add Product</span>
+                </button>
+              </div>
+
+              {(addQuotationForm.products || []).length === 0 ? (
+                <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
+                  <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">No products linked yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Select an opportunity above or click &ldquo;+ Add Product&rdquo; to add line items with Description, Code, Brand, Quantity, and Price.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAddProductRow}
+                    className="mt-3 px-3.5 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>+ Add Product</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
+                          <th className="py-2.5 px-3 w-10 text-center">#</th>
+                          <th className="py-2.5 px-3 min-w-[220px]">Item Name & Description <span className="text-rose-500">*</span></th>
+                          <th className="py-2.5 px-3 min-w-[120px]">Item Code</th>
+                          <th className="py-2.5 px-3 min-w-[120px]">Brand</th>
+                          <th className="py-2.5 px-3 w-24 text-center">Quantity</th>
+                          <th className="py-2.5 px-3 w-32 text-right">Unit Price (AED)</th>
+                          <th className="py-2.5 px-3 w-32 text-right">Total (AED)</th>
+                          <th className="py-2.5 px-3 w-12 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {addQuotationForm.products.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-slate-50/60 transition-colors align-top">
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] font-bold">
+                              {String(idx + 1).padStart(2, '0')}
+                            </td>
+                            <td className="py-2 px-3 space-y-1.5">
+                              <input
+                                type="text"
+                                placeholder="Enter item name..."
+                                value={item.itemName || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'itemName', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-900 outline-none focus:bg-white focus:border-[#011635]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Product description & technical specs..."
+                                value={item.description || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'description', e.target.value)}
+                                className="w-full px-2.5 py-1 bg-slate-50/80 border border-slate-200/70 rounded-md text-[11px] text-slate-600 outline-none focus:bg-white focus:border-[#011635] placeholder:text-slate-400"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Code / SKU"
+                                value={item.itemCode || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'itemCode', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Brand"
+                                value={item.brand || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'brand', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity || 1}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'quantity', e.target.value)}
+                                className="w-20 px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-center font-bold text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                              />
+                            </td>
+                            <td className="py-2 px-3 text-right">
+                              <input
+                                type="number"
+                                step="any"
+                                placeholder="0.00"
+                                value={item.price || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'price', e.target.value)}
+                                className="w-28 px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-right font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-slate-900">
+                              {(parseFloat(item.total) || ((parseFloat(item.quantity) || 1) * (parseFloat(item.price) || 0))).toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                              })}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveProductRow(item.id)}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title="Remove line item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div>
-                    <span className="text-slate-800 font-bold">
-                      Opportunity Products Linked {addQuotationForm.opportunityCode ? `(${addQuotationForm.opportunityCode})` : ''}:
-                    </span>
-                    <span className="ml-1.5 font-mono text-blue-700 font-semibold">
-                      {addQuotationForm.products.map((p) => `${p.itemName || 'Item'} (Code: ${p.itemCode || '-'}, QTY: ${p.quantity || 1}, Brand: ${p.brand || '-'}, AED ${p.price || 0})`).join(' • ')}
-                    </span>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleAddProductRow}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Add Another Product</span>
+                    </button>
+
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-slate-600 mr-2">Total Products Amount:</span>
+                      <span className="text-sm font-extrabold font-mono text-slate-900">
+                        AED {(addQuotationForm.products || []).reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2.5 py-0.5 rounded-full shrink-0 self-start sm:self-auto">
-                  Opportunity Details Synced
-                </span>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Bottom Action Row: [✓] Update quotation amount in opportunity | [Submit] [← Back] */}
+            {/* Bottom Action Row: [✓] Update quotation amount in opportunity | [Print / PDF Preview] [Submit] [← Back] */}
             <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <label className="flex items-center gap-2 cursor-pointer select-none">
                 <input
@@ -988,7 +1321,16 @@ export default function CommercialOfferView({
                 </span>
               </label>
 
-              <div className="flex items-center gap-2.5 self-end sm:self-auto">
+              <div className="flex flex-wrap items-center gap-2.5 self-end sm:self-auto">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPdfPreview(addQuotationForm)}
+                  className="px-4 py-2 bg-[#16477A] hover:bg-[#0f345a] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                  title="Preview PDF Document and Print"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print / PDF Preview</span>
+                </button>
                 <button
                   type="submit"
                   className="px-6 py-2 bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs"
@@ -1141,7 +1483,7 @@ export default function CommercialOfferView({
                 </div>
               </div>
 
-              {/* RIGHT COLUMN: Overview Metric Cards */}
+              {/* RIGHT COLUMN: Overview Metric Cards & Itemized Products */}
               <div className="lg:col-span-6 space-y-4">
                 <div className="font-bold text-slate-800 text-xs pb-1">
                   <span>Overview</span>
@@ -1153,7 +1495,7 @@ export default function CommercialOfferView({
                     <div>
                       <div className="text-[10px] uppercase font-bold text-slate-400">AMOUNT</div>
                       <div className="text-sm font-extrabold text-slate-900 mt-0.5">
-                        {selectedOfferDetail.amount?.replace(/AED\s?/g, '') || '1,309.35'}
+                        {offerProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
@@ -1177,7 +1519,7 @@ export default function CommercialOfferView({
                     <div>
                       <div className="text-[10px] uppercase font-bold text-slate-400">VAT (5%)</div>
                       <div className="text-sm font-extrabold text-slate-900 mt-0.5">
-                        {selectedOfferDetail.vat?.replace(/AED\s?/g, '') || '65.47'}
+                        {offerProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -1190,7 +1532,7 @@ export default function CommercialOfferView({
                     <div>
                       <div className="text-[10px] uppercase font-bold text-slate-400">SUB TOTAL</div>
                       <div className="text-sm font-extrabold text-slate-900 mt-0.5">
-                        {selectedOfferDetail.total?.replace(/AED\s?/g, '') || '1,374.82'}
+                        {offerProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
                     <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
@@ -1213,13 +1555,95 @@ export default function CommercialOfferView({
                   <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
                     <div>
                       <div className="text-[10px] uppercase font-bold text-slate-400">TOTAL AMOUNT</div>
-                      <div className="text-sm font-extrabold text-slate-900 mt-0.5">
-                        {selectedOfferDetail.total?.replace(/AED\s?/g, '') || '1,374.82'}
+                      <div className="text-sm font-extrabold text-[#16477A] mt-0.5">
+                        {offerProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-500 flex items-center justify-center font-bold text-xs">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
                       $
                     </div>
+                  </div>
+                </div>
+
+                {/* Products / Items Details (Right Column - Fills Empty Space & Balances Left Column) */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-5 space-y-3">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-[#16477A]" />
+                      <span className="text-xs font-bold text-slate-800">Products / Items Details</span>
+                      {selectedOfferDetail.opportunityCode && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-[#16477A] border border-blue-200">
+                          {selectedOfferDetail.opportunityCode}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {currentOfferProducts.length} {currentOfferProducts.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
+                          <th className="py-2.5 px-3">Item Name</th>
+                          <th className="py-2.5 px-2.5">Code</th>
+                          <th className="py-2.5 px-2.5">Brand</th>
+                          <th className="py-2.5 px-2 text-center">QTY</th>
+                          <th className="py-2.5 px-2.5 text-right">Unit Price</th>
+                          <th className="py-2.5 px-3 text-right">Total (AED)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentOfferProducts.map((p, idx) => (
+                          <tr key={p.id || idx} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3">
+                              <span className="font-semibold text-slate-900 block">{p.itemName || '—'}</span>
+                              {(p.description || p.itemCode) && (
+                                <span className="text-[10px] text-slate-500 block">
+                                  {p.description || `Technical spec code: ${p.itemCode}`}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-2.5 font-mono text-slate-600 text-[11px]">{p.itemCode || '—'}</td>
+                            <td className="py-2.5 px-2.5 text-slate-700">{p.brand || '—'}</td>
+                            <td className="py-2.5 px-2 text-center font-bold text-slate-800">{p.quantity || 1}</td>
+                            <td className="py-2.5 px-2.5 text-right font-mono text-slate-700">
+                              {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[#16477A]">
+                              {(parseFloat(p.total ?? (p.quantity * p.price || 0)) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
+                          <td colSpan={5} className="py-2 px-3 text-right text-slate-600">
+                            Subtotal:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-900">
+                            AED {offerProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-slate-50/80 font-bold text-xs">
+                          <td colSpan={5} className="py-1.5 px-3 text-right text-slate-500 font-medium">
+                            5% UAE VAT:
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-slate-700">
+                            AED {offerProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-blue-50/60 font-extrabold text-xs text-[#011635] border-t border-blue-100">
+                          <td colSpan={5} className="py-2 px-3 text-right text-[#011635]">
+                            Total Amount:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-[#16477A] text-sm">
+                            AED {offerProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -1254,81 +1678,6 @@ export default function CommercialOfferView({
               </div>
             )}
 
-            {/* Products / Items Details (Inherited from Opportunity) */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-800">Products / Items Details</span>
-                  {selectedOfferDetail.opportunityCode && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                      Opportunity {selectedOfferDetail.opportunityCode}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[11px] font-bold text-slate-500">
-                  {currentOfferProducts.length} {currentOfferProducts.length === 1 ? 'item' : 'items'}
-                </span>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
-                      <th className="py-2.5 px-3">Item Name</th>
-                      <th className="py-2.5 px-3">Code</th>
-                      <th className="py-2.5 px-3">Brand</th>
-                      <th className="py-2.5 px-3 text-center">QTY</th>
-                      <th className="py-2.5 px-3 text-right">Unit Price (AED)</th>
-                      <th className="py-2.5 px-3 text-right">Total (AED)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {currentOfferProducts.map((p, idx) => (
-                      <tr key={p.id || idx} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">{p.itemName || '—'}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-600">{p.itemCode || '—'}</td>
-                        <td className="py-2.5 px-3 text-slate-700">{p.brand || '—'}</td>
-                        <td className="py-2.5 px-3 text-center font-bold text-slate-800">{p.quantity || 1}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                          {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-700">
-                          {(parseFloat(p.total) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
-                      <td colSpan={5} className="py-2.5 px-3 text-right text-slate-600">
-                        Subtotal:
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-900">
-                        AED {offerProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr className="bg-slate-50/80 font-bold text-xs">
-                      <td colSpan={5} className="py-2 px-3 text-right text-slate-500 font-medium">
-                        5% UAE VAT:
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-700">
-                        AED {offerProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr className="bg-blue-50/60 font-extrabold text-xs text-blue-900 border-t border-blue-100">
-                      <td colSpan={5} className="py-2.5 px-3 text-right text-blue-900">
-                        Total Amount:
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-blue-700 text-sm">
-                        AED {offerProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-
             {/* Bottom Action Buttons: Back on left, Print/Revise/Edit/Delete on right */}
             <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
               <button
@@ -1343,27 +1692,12 @@ export default function CommercialOfferView({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => toast.info('Print format selected')}
-                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
+                  onClick={() => handleOpenPdfPreview(selectedOfferDetail)}
+                  className="px-3.5 py-2 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
+                  title="View PDF Document and Print"
                 >
                   <Printer className="w-3.5 h-3.5" />
-                  <span>Print Format ▾</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toast.info('Exporting USD Quotation...')}
-                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print in USD</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toast.success(`Printing quotation ${selectedOfferDetail.quotationNo}...`)}
-                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print</span>
+                  <span>Print / PDF Preview</span>
                 </button>
                 <button
                   type="button"
@@ -1774,6 +2108,18 @@ export default function CommercialOfferView({
                                   <span>Edit</span>
                                 </button>
 
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleOpenPdfPreview(item);
+                                    setActiveActionId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-[13px] text-[#011635] hover:bg-slate-50 rounded-lg flex items-center gap-3 font-semibold transition cursor-pointer"
+                                >
+                                  <Printer className="w-4 h-4 text-[#16477A] stroke-[1.8]" />
+                                  <span>Print / PDF</span>
+                                </button>
+
                                 <div className="my-1 border-t border-slate-100" />
 
                                 <button
@@ -1843,6 +2189,16 @@ export default function CommercialOfferView({
           </div>
         </>
       )}
+
+      {/* ============================================================== */}
+      {/* COMMERCIAL QUOTATION PDF DOCUMENT PREVIEW MODAL                */}
+      {/* ============================================================== */}
+      <CommercialDocumentPdfModal
+        isOpen={pdfPreviewModal.isOpen}
+        onClose={handleClosePdfPreview}
+        docType="QUOTATION"
+        data={pdfPreviewModal.data}
+      />
     </div>
   );
 }

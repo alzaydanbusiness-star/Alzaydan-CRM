@@ -168,6 +168,7 @@ export default function ReceiptView({
       list.push({ name: clean });
     };
 
+    addCust('hai');
     addCust('Shaheer');
     if (Array.isArray(customers)) {
       customers.forEach((c) => addCust(c.name || c.customerName));

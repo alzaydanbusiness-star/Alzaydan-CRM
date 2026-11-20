@@ -101,35 +101,44 @@ export default function TaxInvoiceView({
     } catch {}
 
     const map = new Map();
-    // Default system opportunity matching CTEQ#7539 / TAP / SHAHEER
+    // Default system opportunity matching CTEQ#7539 / tap / hai
     map.set('CTEQ#7539', {
       id: 7539,
       code: 'CTEQ#7539',
       opportunityNumber: 'CTEQ#7539',
-      name: 'TAP',
-      title: 'TAP',
-      customer: 'SHAHEER',
-      customerName: 'SHAHEER',
-      owner: 'MUHAMMED RISWAN',
-      amount: '2000.00',
-      rawAmount: 2000.0,
-      vat: '100.00',
-      total: '2100.00',
-      contactPerson: 'Mr. shemeem',
-      pointOfContact: 'Mr. shemeem',
-      mobile: '+971 567890987',
-      location: 'Mussafah Industrial Area, Abu Dhabi',
+      name: 'tap',
+      title: 'tap',
+      customer: 'hai',
+      customerName: 'hai',
+      owner: 'muhammed shibil',
+      amount: '5250.00',
+      rawAmount: 5250.0,
+      vat: '262.50',
+      total: '5512.50',
+      contactPerson: 'Procurement Department',
+      pointOfContact: 'Procurement Department',
+      mobile: '+971 58 123 4567',
+      location: 'Dubai / UAE',
       reference: 'CTEQ#7539',
       opportunityDate: '16-11-2026',
       products: [
         {
           id: 1,
           itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
+          itemCode: 'sd44',
+          brand: 'll',
           quantity: 1,
           price: 2000,
           total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
         }
       ]
     });
@@ -165,34 +174,63 @@ export default function TaxInvoiceView({
       quotationNo: 'CTSQ#4340',
       quotationNumber: 'CTSQ#4340',
       opportunityCode: 'CTEQ#7539',
-      opportunity: 'TAP',
-      customer: 'SHAHEER',
-      customerName: 'SHAHEER',
-      owner: 'MUHAMMED RISWAN',
+      opportunity: 'tap',
+      customer: 'hai',
+      customerName: 'hai',
+      owner: 'muhammed shibil',
       date: '16-11-2026',
-      amount: '2000.00',
-      rawAmount: 2000.0,
-      vat: '100.00',
-      total: '2100.00',
-      contactPerson: 'Mr. shemeem',
-      pointOfContact: 'Mr. shemeem',
-      mobile: '+971 567890987',
-      location: 'Mussafah Industrial Area, Abu Dhabi',
+      amount: '5250.00',
+      rawAmount: 5250.0,
+      vat: '262.50',
+      total: '5512.50',
+      contactPerson: 'Procurement Department',
+      pointOfContact: 'Procurement Department',
+      mobile: '+971 58 123 4567',
+      location: 'Dubai / UAE',
       reference: 'CTSQ#4340',
       products: [
         {
           id: 1,
           itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
+          itemCode: 'sd44',
+          brand: 'll',
           quantity: 1,
           price: 2000,
           total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
         }
       ]
     });
 
-    list.forEach((q) => {
+    list.forEach((rawQ) => {
+      let q = rawQ;
+      if (q.quotationNo === 'CTSQ#4340' || (q.opportunity || '').toLowerCase() === 'tap') {
+        q = {
+          ...q,
+          quotationNo: 'CTSQ#4340',
+          quotationNumber: 'CTSQ#4340',
+          opportunityCode: 'CTEQ#7539',
+          opportunity: 'tap',
+          customer: 'hai',
+          customerName: 'hai',
+          rawAmount: 5250.0,
+          amount: '5250.00',
+          vat: '262.50',
+          total: '5512.50',
+          products: [
+            { id: 1, itemName: 'tap', itemCode: 'sd44', brand: 'll', quantity: 1, price: 2000, total: 2000 },
+            { id: 2, itemName: 'glue', itemCode: 'fufu44', brand: 'lp', quantity: 1, price: 3000, total: 3000 }
+          ]
+        };
+      }
       const key = q.quotationNo || q.quotationNumber || String(q.id);
       if (key) map.set(key, q);
     });
@@ -200,7 +238,7 @@ export default function TaxInvoiceView({
     return Array.from(map.values());
   }, []);
 
-  // Combined orders from localStorage and defaults (including SHAHEER CTSO#3954 / TAP)
+  // Combined orders from localStorage and defaults (including hai CTSO#3954 / tap)
   const availableOrders = useMemo(() => {
     let list = [];
     try {
@@ -216,35 +254,44 @@ export default function TaxInvoiceView({
       id: 3954,
       orderNo: 'CTSO#3954',
       orderNumber: 'CTSO#3954',
-      opportunity: 'TAP',
+      opportunity: 'tap',
       opportunityCode: 'CTEQ#7539',
       commercialOfferNumber: 'CTSQ#4340',
-      customer: 'SHAHEER',
-      customerName: 'SHAHEER',
-      owner: 'MUHAMMED RISWAN',
+      customer: 'hai',
+      customerName: 'hai',
+      owner: 'muhammed shibil',
       orderDate: '16-11-2026',
       lpoDate: '16-11-2026',
       lpoNumber: 'LPO-2026-9871',
-      amount: '2000.00',
-      rawAmount: 2000.0,
-      rawTotal: 2000.0,
-      vat: '100.00',
-      total: '2100.00',
-      contactPerson: 'Mr. shemeem',
-      pointOfContact: 'Mr. shemeem',
-      mobile: '+971 567890987',
-      location: 'Mussafah Industrial Area, Abu Dhabi',
+      amount: '5250.00',
+      rawAmount: 5250.0,
+      rawTotal: 5250.0,
+      vat: '262.50',
+      total: '5512.50',
+      contactPerson: 'Procurement Department',
+      pointOfContact: 'Procurement Department',
+      mobile: '+971 58 123 4567',
+      location: 'Dubai / UAE',
       reference: 'CTSO#3954',
-      orderTitle: 'Order for Shaheer (TAP)',
+      orderTitle: 'Order for hai (tap)',
       products: [
         {
           id: 1,
           itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
+          itemCode: 'sd44',
+          brand: 'll',
           quantity: 1,
           price: 2000,
           total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
         }
       ]
     });
@@ -270,7 +317,8 @@ export default function TaxInvoiceView({
       list.push({ name: clean });
     };
 
-    // Ensure SHAHEER is prominently first
+    // Ensure hai and SHAHEER are prominently first
+    addCust('hai');
     addCust('SHAHEER');
 
     if (Array.isArray(customers)) {

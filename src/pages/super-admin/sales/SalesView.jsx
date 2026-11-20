@@ -114,6 +114,7 @@ export default function SalesView({
           customers={customers}
           opportunities={opportunities}
           leads={leads}
+          onNavigateOpportunity={() => setActiveSubTab('Opportunity')}
         />
       )}
 

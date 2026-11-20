@@ -151,48 +151,113 @@ const DUMMY_NAMES_TO_FILTER = [
   'fatima al hassan (employee)'
 ];
 
+const DELETED_KEY = 'alzaydan_deleted_employees';
+
+/**
+ * Get list of deleted user emails and IDs
+ */
+export function getDeletedUserIdentifiers() {
+  try {
+    const raw = localStorage.getItem(DELETED_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Record a deleted user permanently so they never reappear on refresh
+ */
+export function deleteStoredUser(id, email, name) {
+  try {
+    const deleted = getDeletedUserIdentifiers();
+    const toAdd = [
+      id !== undefined && id !== null ? String(id) : null,
+      email ? String(email).toLowerCase().trim() : null,
+      name ? String(name).toLowerCase().trim() : null
+    ].filter(Boolean);
+
+    let changed = false;
+    for (const item of toAdd) {
+      if (!deleted.includes(item)) {
+        deleted.push(item);
+        changed = true;
+      }
+    }
+    if (changed) {
+      localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+    }
+
+    // Also update custom employees immediately in localStorage
+    const raw = localStorage.getItem('alzaydan_custom_employees');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        const updated = parsed.filter((u) => {
+          const uId = String(u.id);
+          const uEmail = (u.email || '').toLowerCase().trim();
+          const uName = (u.name || '').toLowerCase().trim();
+          return !toAdd.includes(uId) && !toAdd.includes(uEmail) && !toAdd.includes(uName);
+        });
+        localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updated));
+      }
+    }
+  } catch {}
+}
+
 /**
  * Retrieve active current users from localStorage (or initialize with canonical users)
  */
 export function getStoredUsers() {
   try {
+    const deletedList = getDeletedUserIdentifiers();
     const raw = localStorage.getItem('alzaydan_custom_employees');
-    let parsed = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(parsed) || parsed.length === 0) {
-      localStorage.setItem('alzaydan_custom_employees', JSON.stringify(CANONICAL_SYSTEM_USERS));
-      return CANONICAL_SYSTEM_USERS;
+
+    // If first time ever opening the app, initialize with canonical users minus deleted
+    if (!raw) {
+      const initial = CANONICAL_SYSTEM_USERS.filter((u) => {
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uId = String(u.id);
+        const uName = (u.name || '').toLowerCase().trim();
+        return !deletedList.includes(uEmail) && !deletedList.includes(uId) && !deletedList.includes(uName);
+      });
+      localStorage.setItem('alzaydan_custom_employees', JSON.stringify(initial));
+      return initial;
     }
 
-    // Filter out dummy test entries (like "hamdan (EMPLOYEE)")
+    let parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      parsed = [];
+    }
+
+    // Filter out dummy test entries and deleted users
     let filtered = parsed.filter((u) => {
       const nameLower = (u.name || '').toLowerCase().trim();
       const emailLower = (u.email || '').toLowerCase().trim();
+      const idStr = String(u.id);
       if (DUMMY_NAMES_TO_FILTER.includes(nameLower)) return false;
       if (emailLower.includes('hamdan@')) return false;
+      if (
+        deletedList.includes(emailLower) ||
+        deletedList.includes(idStr) ||
+        deletedList.includes(nameLower)
+      ) return false;
       return true;
     });
 
-    // Make sure all canonical users are present
-    let added = false;
-    for (const canonical of CANONICAL_SYSTEM_USERS) {
-      const exists = filtered.some(
-        (u) =>
-          (u.email && u.email.toLowerCase() === canonical.email.toLowerCase()) ||
-          u.name.toLowerCase() === canonical.name.toLowerCase()
-      );
-      if (!exists) {
-        filtered.push(canonical);
-        added = true;
-      }
-    }
-
-    if (added || filtered.length !== parsed.length) {
+    if (filtered.length !== parsed.length) {
       localStorage.setItem('alzaydan_custom_employees', JSON.stringify(filtered));
     }
 
     return filtered;
   } catch {
-    return CANONICAL_SYSTEM_USERS;
+    const deletedList = getDeletedUserIdentifiers();
+    return CANONICAL_SYSTEM_USERS.filter((u) => {
+      const uEmail = (u.email || '').toLowerCase().trim();
+      const uId = String(u.id);
+      const uName = (u.name || '').toLowerCase().trim();
+      return !deletedList.includes(uEmail) && !deletedList.includes(uId) && !deletedList.includes(uName);
+    });
   }
 }
 
@@ -230,4 +295,168 @@ export function getLoggedInUser() {
     }
   } catch {}
   return CANONICAL_SYSTEM_USERS[0];
+}
+
+/**
+ * Check if the user is a Sales Executive / Frontline Staff
+ */
+export function isSalesExecutive(user) {
+  const u = user || getLoggedInUser();
+  if (!u) return false;
+  const roleTier = (u.roleTier || '').toLowerCase().trim();
+  const role = (u.role || '').toLowerCase().trim();
+  const designation = (u.designation || '').toLowerCase().trim();
+  
+  if (
+    roleTier === 'super-admin' ||
+    roleTier === 'manager' ||
+    role.includes('admin') ||
+    role.includes('ceo') ||
+    role.includes('manager')
+  ) {
+    return false;
+  }
+  return (
+    roleTier === 'staff' ||
+    role.includes('sales executive') ||
+    role.includes('commercial operations') ||
+    designation.includes('sales executive') ||
+    (u.email && u.email.toLowerCase().includes('shibil')) ||
+    (u.name && u.name.toLowerCase().includes('shibil'))
+  );
+}
+
+/**
+ * Determine the user role tier: 'super-admin' | 'manager' | 'team-lead' | 'staff'
+ */
+export function getUserTier(user) {
+  const u = user || getLoggedInUser();
+  if (!u) return 'super-admin';
+  const roleTier = (u.roleTier || '').toLowerCase().trim();
+  const role = (u.role || '').toLowerCase().trim();
+  const desig = (u.designation || '').toLowerCase().trim();
+  const crmProfile = (u.crmProfile || '').toLowerCase().trim();
+  const email = (u.email || '').toLowerCase().trim();
+
+  if (
+    roleTier === 'super-admin' ||
+    role.includes('super admin') ||
+    role.includes('ceo') ||
+    email === 'al@gmail.com'
+  ) {
+    return 'super-admin';
+  }
+
+  if (
+    roleTier === 'manager' ||
+    role.includes('manager') ||
+    desig.includes('manager') ||
+    crmProfile.includes('manager') ||
+    email === 'shemin@gmail.com'
+  ) {
+    return 'manager';
+  }
+
+  if (
+    roleTier === 'team-lead' ||
+    role.includes('team lead') ||
+    role.includes('lead') ||
+    desig.includes('team lead') ||
+    crmProfile.includes('team lead') ||
+    email === 'lead@alzaydan.com'
+  ) {
+    return 'team-lead';
+  }
+
+  return 'staff';
+}
+
+/**
+ * Filter tasks according to the organizational hierarchy rules:
+ * - Super Admin: Sees all tasks enterprise-wide (created by anyone, assigned to anyone, or unassigned).
+ * - Manager: Sees Super Admin tasks, Manager tasks, and subordinate tasks down the department.
+ * - Team Lead: Sees tasks created by/for Manager & Lead, and tasks assigned to their Sales Executives.
+ * - Sales Executive (Staff): ONLY sees tasks assigned directly to them (or created by them).
+ */
+export function filterTasksByRole(tasks, user) {
+  if (!Array.isArray(tasks)) return [];
+  const u = user || getLoggedInUser();
+  const tier = getUserTier(u);
+
+  // 1. Super Admin: full access to 100% of tasks
+  if (tier === 'super-admin') {
+    return tasks;
+  }
+
+  const userEmail = (u?.email || '').toLowerCase().trim();
+  const userName = (u?.name || '').toLowerCase().trim();
+  const userFirstName = userName.split(' ')[0] || '';
+
+  const isAssignedToUser = (task) => {
+    const assignee = (task.assignee || '').toLowerCase().trim();
+    if (!assignee) return false;
+    return (
+      assignee === userName ||
+      assignee === userEmail ||
+      (userFirstName && assignee.includes(userFirstName)) ||
+      (task.assigneeEmail && task.assigneeEmail.toLowerCase().trim() === userEmail)
+    );
+  };
+
+  const isCreatedByUser = (task) => {
+    const createdBy = (task.createdBy || '').toLowerCase().trim();
+    if (!createdBy) return false;
+    return (
+      createdBy === userName ||
+      createdBy === userEmail ||
+      (userFirstName && createdBy.includes(userFirstName))
+    );
+  };
+
+  // 2. Sales Executive (Staff): STRICTLY tasks assigned to them (or created by them)
+  if (tier === 'staff') {
+    return tasks.filter((t) => isAssignedToUser(t) || isCreatedByUser(t));
+  }
+
+  // 3. Team Lead: Tasks assigned to them, created by them, or assigned to subordinate Sales Executives
+  if (tier === 'team-lead') {
+    return tasks.filter((t) => {
+      if (isAssignedToUser(t) || isCreatedByUser(t)) return true;
+      const assignee = (t.assignee || '').toLowerCase().trim();
+      const creator = (t.createdBy || '').toLowerCase().trim();
+      // Can see tasks assigned to frontline staff
+      if (
+        assignee.includes('shibil') ||
+        assignee.includes('shaheer') ||
+        assignee.includes('rep') ||
+        assignee.includes('staff') ||
+        assignee.includes('executive')
+      ) {
+        return true;
+      }
+      // Tasks from Manager / Admin targeted to Team Lead or team
+      if (creator.includes('manager') || creator.includes('shemin') || creator.includes('super admin')) {
+        if (!assignee || assignee === 'team lead' || assignee.includes('riswan') || assignee === 'all') {
+          return true;
+        }
+      }
+      return false;
+    });
+  }
+
+  // 4. Manager: Sees Super Admin tasks, Manager tasks, and all team tasks
+  if (tier === 'manager') {
+    return tasks.filter(() => true);
+  }
+
+  return tasks;
+}
+
+/**
+ * Check if the user can manage users / view employee directory
+ */
+export function canManageUsers(user) {
+  const u = user || getLoggedInUser();
+  if (!u) return true;
+  return !isSalesExecutive(u);
 }

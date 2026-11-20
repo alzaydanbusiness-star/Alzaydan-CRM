@@ -26,13 +26,46 @@ import {
   ArrowLeft
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStoredUsers } from '../../../utils/userDirectory';
+import {
+  getStoredUsers,
+  getLoggedInUser,
+  getUserTier,
+  filterTasksByRole,
+  isSalesExecutive
+} from '../../../utils/userDirectory';
 
 export default function TaskManager({
   employees = [],
   customers = [],
   leads = []
 }) {
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const stored = localStorage.getItem('alzaydan_current_user');
+      return stored ? JSON.parse(stored) : getLoggedInUser();
+    } catch {
+      return getLoggedInUser();
+    }
+  });
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      try {
+        const stored = localStorage.getItem('alzaydan_current_user');
+        if (stored) setCurrentUser(JSON.parse(stored));
+      } catch {}
+    };
+    window.addEventListener('alzaydan_user_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('alzaydan_user_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const isSalesExec = isSalesExecutive(currentUser);
+  const userTier = getUserTier(currentUser);
+
   // Available real users from directory
   const availableUsers = useMemo(() => {
     const stored = getStoredUsers();
@@ -48,7 +81,9 @@ export default function TaskManager({
     return stored;
   }, [employees]);
 
-  const defaultAssignee = availableUsers[0]?.name || 'Super Admin';
+  const defaultAssignee = isSalesExec
+    ? currentUser?.name || 'muhammed shibil'
+    : availableUsers[0]?.name || 'Super Admin';
 
   // Dynamic Assignee list from real current users
   const assigneeOptions = useMemo(() => {
@@ -208,21 +243,26 @@ export default function TaskManager({
     }
   }, [taskList]);
 
+  // Role-Based Task Visibility: Filter tasks based on organizational hierarchy
+  const visibleTasks = useMemo(() => {
+    return filterTasksByRole(taskList, currentUser);
+  }, [taskList, currentUser]);
+
   // Dynamic counts for status ribbon matching Reference Image 2
   const statusCounts = useMemo(() => {
     return {
-      all: taskList.length,
-      today: taskList.filter((t) => t.status === 'Today' && !t.completed).length,
-      pending: taskList.filter((t) => t.status === 'Pending' && !t.completed).length,
-      progress: taskList.filter((t) => t.status === 'Progress' && !t.completed).length,
-      overdue: taskList.filter((t) => t.status === 'Overdue' && !t.completed).length,
-      upcoming: taskList.filter((t) => t.status === 'Upcoming' && !t.completed).length,
-      completed: taskList.filter((t) => t.completed).length,
-      meeting: taskList.filter((t) => t.taskType === 'Meeting').length,
-      followup: taskList.filter((t) => t.taskType === 'Followup').length,
-      call: taskList.filter((t) => t.taskType === 'Call').length
+      all: visibleTasks.length,
+      today: visibleTasks.filter((t) => t.status === 'Today' && !t.completed).length,
+      pending: visibleTasks.filter((t) => t.status === 'Pending' && !t.completed).length,
+      progress: visibleTasks.filter((t) => t.status === 'Progress' && !t.completed).length,
+      overdue: visibleTasks.filter((t) => t.status === 'Overdue' && !t.completed).length,
+      upcoming: visibleTasks.filter((t) => t.status === 'Upcoming' && !t.completed).length,
+      completed: visibleTasks.filter((t) => t.completed).length,
+      meeting: visibleTasks.filter((t) => t.taskType === 'Meeting').length,
+      followup: visibleTasks.filter((t) => t.taskType === 'Followup').length,
+      call: visibleTasks.filter((t) => t.taskType === 'Call').length
     };
-  }, [taskList]);
+  }, [visibleTasks]);
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -297,7 +337,8 @@ export default function TaskManager({
       assignee: formData.assignee,
       assigneeRole: 'Assigned Specialist',
       avatarBg: 'bg-[#011635] text-white',
-      createdBy: 'Super Admin',
+      createdBy: currentUser?.name || 'Super Admin',
+      creatorRole: currentUser?.role || 'Super Admin'
     };
 
     setTaskList((prev) => [newTask, ...prev]);
@@ -317,7 +358,7 @@ export default function TaskManager({
 
   // Filtered task results
   const filteredTasks = useMemo(() => {
-    return taskList
+    return visibleTasks
       .filter((task) => {
         // Status tab filter
         if (activeStatusTab === 'Today' && (task.status !== 'Today' || task.completed)) return false;
@@ -359,7 +400,7 @@ export default function TaskManager({
         return b.id - a.id;
       });
   }, [
-    taskList,
+    visibleTasks,
     activeStatusTab,
     subTypeTab,
     selectedAssignee,
@@ -403,10 +444,12 @@ export default function TaskManager({
       title: inlineTaskTitle || `${activeAddTaskType}: ${selectedTemplate}`,
       description: inlineTaskDesc || `Task executed under ${selectedTemplate} workflow.`,
       assignee: inlineAssignee || defaultAssignee,
-      assigneeRole: 'Sales Executive',
+      assigneeRole: isSalesExec ? 'Sales Executive' : 'Specialist',
       avatarBg: 'bg-[#011635] text-white',
       taskUnder: inlineTaskUnder || 'Gulf Logistics Hub',
       taskType: activeAddTaskType.replace(' Task', ''),
+      createdBy: currentUser?.name || 'Super Admin',
+      creatorRole: currentUser?.role || 'Super Admin',
       priority: inlinePriority,
       priorityColor:
         inlinePriority === 'Urgent'
@@ -465,7 +508,7 @@ export default function TaskManager({
   const filteredAssignTasks = useMemo(() => {
     if (!assignHasLoaded) return [];
 
-    return taskList
+    return visibleTasks
       .filter((task) => {
         // Assignee
         if (
@@ -547,7 +590,7 @@ export default function TaskManager({
         }
         return b.id - a.id;
       });
-  }, [taskList, assignHasLoaded, appliedAssignFilters, assignSearchQuery]);
+  }, [visibleTasks, assignHasLoaded, appliedAssignFilters, assignSearchQuery]);
 
   const totalAssignPages = Math.ceil(filteredAssignTasks.length / assignRowsPerPage) || 1;
   const pagedAssignTasks = useMemo(() => {
@@ -872,20 +915,22 @@ export default function TaskManager({
 
             {/* Right Action Buttons */}
             <div className="flex items-center gap-2">
-              {/* Assign Task (Dark Blue Button with SquareArrowOutUpRight matching Image 1) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setViewMode('assign');
-                  setSelectedTaskIds([]);
-                  setBulkAssignee('');
-                  setAssignHasLoaded(true);
-                }}
-                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-              >
-                <SquareArrowOutUpRight className="w-3.5 h-3.5" />
-                <span>Assign Task</span>
-              </button>
+              {/* Assign Task (Dark Blue Button with SquareArrowOutUpRight matching Image 1 - Restricted to Admins, Managers & Team Leads) */}
+              {!isSalesExec && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('assign');
+                    setSelectedTaskIds([]);
+                    setBulkAssignee('');
+                    setAssignHasLoaded(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                >
+                  <SquareArrowOutUpRight className="w-3.5 h-3.5" />
+                  <span>Assign Task</span>
+                </button>
+              )}
 
               {/* + TASK ▾ / ▴ (Emerald Green Button with Dropdown Matching Image 1) */}
               <div className="relative" ref={taskDropdownRef}>

@@ -123,24 +123,33 @@ export default function SalesOrderView({
     } catch {}
 
     const map = new Map();
-    // Default system opportunity matching CTEQ#7539 / TAP / SHAHEER
+    // Default system opportunity matching CTEQ#7539 / tap / hai
     map.set('CTEQ#7539', {
       id: 7539,
       code: 'CTEQ#7539',
-      name: 'TAP',
-      customer: 'SHAHEER',
-      owner: 'MUHAMMED RISWAN',
-      amount: 'AED 2,100.00',
-      rawAmount: 2100.0,
+      name: 'tap',
+      customer: 'hai',
+      owner: 'muhammed shibil',
+      amount: 'AED 5,250.00',
+      rawAmount: 5250.0,
       products: [
         {
           id: 1,
           itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
+          itemCode: 'sd44',
+          brand: 'll',
           quantity: 1,
           price: 2000,
           total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
         }
       ]
     });
@@ -179,80 +188,25 @@ export default function SalesOrderView({
     }
   }, [orders]);
 
-  const [availableQuotations] = useState(() => {
-    try {
-      const saved = localStorage.getItem('alzaydan_crm_quotations');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return [];
-  });
-
-  const availableLeads = useMemo(() => {
-    let list = Array.isArray(leads) ? [...leads] : [];
-    try {
-      const saved = localStorage.getItem('alzaydan_crm_leads');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          parsed.forEach((pl) => {
-            if (!list.some((l) => (l.leadCode && l.leadCode === pl.leadCode) || (l.id && l.id === pl.id))) {
-              list.push(pl);
-            }
-          });
-        }
-      }
-    } catch {}
-    return list;
-  }, [leads]);
-
-  const handleCommercialOfferSelect = (offerNo) => {
-    if (!offerNo || offerNo === 'None (Direct Order)') {
-      setAddOrderForm((prev) => ({ ...prev, commercialOfferNumber: offerNo }));
-      return;
-    }
-    const matched = availableQuotations.find((q) => (q.quotationNo && q.quotationNo === offerNo) || (q.quotationNumber && q.quotationNumber === offerNo));
-    if (matched) {
-      const rawNum = matched.rawAmount ? String(matched.rawAmount) : (matched.amount ? String(parseFloat(String(matched.amount).replace(/[^0-9.]/g, '')) || '0.00') : '0.00');
-      setAddOrderForm((prev) => ({
-        ...prev,
-        commercialOfferNumber: matched.quotationNo || matched.quotationNumber || offerNo,
-        customerName: matched.customer || prev.customerName,
-        amount: rawNum,
-        orderTitle: prev.orderTitle || `Order for ${matched.customer || 'Commercial Client'}`,
-        businessOpportunity: matched.bizOpp || prev.businessOpportunity,
-        orderOwner: matched.owner || prev.orderOwner
-      }));
-      toast.success(`Auto-filled details from Quotation ${matched.quotationNo || offerNo}!`);
-    } else {
-      setAddOrderForm((prev) => ({ ...prev, commercialOfferNumber: offerNo }));
-    }
-  };
-
-  const handleLeadSelectInOrder = (leadCodeVal) => {
-    if (!leadCodeVal) {
-      setAddOrderForm((prev) => ({ ...prev, leadNumber: '' }));
-      return;
-    }
-    const matchedLead = availableLeads.find((l) => l.leadCode === leadCodeVal || String(l.id) === leadCodeVal);
-    if (matchedLead) {
-      const companyOrCust = matchedLead.customerName || matchedLead.company || matchedLead.name || '';
-      const personName = matchedLead.contactName || matchedLead.name || '';
-      setAddOrderForm((prev) => ({
-        ...prev,
-        leadNumber: matchedLead.leadCode || leadCodeVal,
-        customerName: companyOrCust || prev.customerName,
-        pointOfContact: personName || prev.pointOfContact,
-        contactPerson: personName || prev.contactPerson,
-        location: matchedLead.location || prev.location
-      }));
-      toast.success(`Auto-filled details from Lead ${matchedLead.leadCode}!`);
-    } else {
-      setAddOrderForm((prev) => ({ ...prev, leadNumber: leadCodeVal }));
-    }
-  };
+  // Reactive sync tick across window events and cross-tab/view changes
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const handleSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('alzaydan_customer_updated', handleSync);
+    window.addEventListener('alzaydan_quotation_updated', handleSync);
+    window.addEventListener('alzaydan_opportunity_updated', handleSync);
+    window.addEventListener('alzaydan_lead_updated', handleSync);
+    window.addEventListener('alzaydan_order_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('alzaydan_customer_updated', handleSync);
+      window.removeEventListener('alzaydan_quotation_updated', handleSync);
+      window.removeEventListener('alzaydan_opportunity_updated', handleSync);
+      window.removeEventListener('alzaydan_lead_updated', handleSync);
+      window.removeEventListener('alzaydan_order_updated', handleSync);
+    };
+  }, []);
 
   // Full Add Order Form State (Matching Reference Image 3 with user adjustments)
   const [addOrderForm, setAddOrderForm] = useState({
@@ -285,10 +239,528 @@ export default function SalesOrderView({
     campaign: '',
     deliveryDate: '',
     lpoDate: '',
-    comments: '', // Changed from Product Details to Comments as requested
+    comments: '',
     orderStatus: 'Pending',
-    reference: ''
+    reference: '',
+    products: []
   });
+
+  // Live Quotations with default fallback (CTSQ#4340 matching hai)
+  const availableQuotations = useMemo(() => {
+    let savedList = [];
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_quotations');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          savedList = parsed;
+        }
+      }
+    } catch {}
+
+    const map = new Map();
+    // Default CTSQ#4340 quotation matching opportunity CTEQ#7539 / tap / hai
+    map.set('ctsq#4340', {
+      id: 1,
+      quotationNo: 'CTSQ#4340',
+      opportunityCode: 'CTEQ#7539',
+      owner: 'muhammed shibil',
+      ownerAvatarBg: 'bg-[#011635] text-white',
+      date: '16-11-2026',
+      opportunity: 'tap',
+      customer: 'hai',
+      rawAmount: 5250.0,
+      amount: 'AED 5,250.00',
+      vat: 'AED 262.50',
+      total: 'AED 5,512.50',
+      status: 'Pending',
+      type: 'Supply And Installation',
+      bizOpp: 'New Business',
+      contactPerson: 'Procurement Department',
+      pointOfContact: 'Procurement Department',
+      leadNumber: 'CTEQ#7539',
+      location: 'Dubai / UAE',
+      deliveryMethod: 'Site Delivery UAE',
+      source: 'Direct Inbound',
+      sourceName: 'Commercial Quotation CTSQ#4340',
+      products: [
+        {
+          id: 1,
+          itemName: 'tap',
+          itemCode: 'sd44',
+          brand: 'll',
+          quantity: 1,
+          price: 2000,
+          total: 2000
+        },
+        {
+          id: 2,
+          itemName: 'glue',
+          itemCode: 'fufu44',
+          brand: 'lp',
+          quantity: 1,
+          price: 3000,
+          total: 3000
+        }
+      ]
+    });
+
+    savedList.forEach((rawQ) => {
+      let q = rawQ;
+      // If quotation is CTSQ#4340 or tap, heal it to customer 'hai' with matching products
+      if (q.quotationNo === 'CTSQ#4340' || (q.opportunity || '').toLowerCase() === 'tap') {
+        q = {
+          ...q,
+          quotationNo: q.quotationNo || 'CTSQ#4340',
+          opportunityCode: q.opportunityCode || 'CTEQ#7539',
+          opportunity: 'tap',
+          customer: 'hai',
+          owner: q.owner === 'shemin' ? 'muhammed shibil' : (q.owner || 'muhammed shibil'),
+          pointOfContact: q.pointOfContact || 'Procurement Department',
+          contactPerson: q.contactPerson || 'Procurement Department',
+          rawAmount: 5250.0,
+          amount: 'AED 5,250.00',
+          vat: 'AED 262.50',
+          total: 'AED 5,512.50',
+          products: [
+            {
+              id: 1,
+              itemName: 'tap',
+              itemCode: 'sd44',
+              brand: 'll',
+              quantity: 1,
+              price: 2000,
+              total: 2000
+            },
+            {
+              id: 2,
+              itemName: 'glue',
+              itemCode: 'fufu44',
+              brand: 'lp',
+              quantity: 1,
+              price: 3000,
+              total: 3000
+            }
+          ]
+        };
+      }
+      const key = String(q.quotationNo || q.quotationNumber || q.id || '').trim().toLowerCase();
+      if (key) map.set(key, q);
+    });
+
+    return Array.from(map.values());
+  }, [syncTick]);
+
+  const availableLeads = useMemo(() => {
+    let list = Array.isArray(leads) ? [...leads] : [];
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_leads');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((pl) => {
+            if (!list.some((l) => (l.leadCode && l.leadCode === pl.leadCode) || (l.id && l.id === pl.id))) {
+              list.push(pl);
+            }
+          });
+        }
+      }
+    } catch {}
+    return list;
+  }, [leads, syncTick]);
+
+  // Combined customers list from props, localStorage, quotations, opportunities, and leads
+  const allCustomers = useMemo(() => {
+    const map = new Map();
+
+    const addCust = (name, extra = {}) => {
+      if (!name || typeof name !== 'string') return;
+      const clean = name.trim();
+      if (!clean || clean.toLowerCase() === 'select customer' || clean.toLowerCase() === 'select') return;
+      const key = clean.toLowerCase();
+      if (!map.has(key)) {
+        map.set(key, { name: clean, ...extra });
+      } else if (Object.keys(extra).length > 0) {
+        map.set(key, { ...extra, ...map.get(key), name: clean });
+      }
+    };
+
+    // 1. From customers prop
+    if (Array.isArray(customers)) {
+      customers.forEach((c) => {
+        const cName = typeof c === 'string' ? c : (c.name || c.company);
+        if (cName) addCust(cName, typeof c === 'object' ? c : {});
+      });
+    }
+
+    // 2. From localStorage alzaydan_crm_customers
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_customers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((c) => {
+            const cName = typeof c === 'string' ? c : (c.name || c.company);
+            if (cName) addCust(cName, typeof c === 'object' ? c : {});
+          });
+        }
+      }
+    } catch {}
+
+    // 3. From quotations (e.g. SHAHEER)
+    availableQuotations.forEach((q) => {
+      if (q.customer) addCust(q.customer, { contactPerson: q.contactPerson || q.attention, location: q.location });
+    });
+
+    // 4. From opportunities
+    availableOpportunities.forEach((opp) => {
+      if (opp.customer) addCust(opp.customer, { contactPerson: opp.contactPerson || opp.attention, location: opp.location });
+    });
+
+    // 5. From leads
+    availableLeads.forEach((l) => {
+      const lCust = l.customerName || l.company || l.name;
+      if (lCust) addCust(lCust, { contactPerson: l.contactName || l.contactPerson, location: l.location });
+    });
+
+    // Ensure hai and SHAHEER are present
+    addCust('hai', { contactPerson: 'Procurement Department', location: 'Dubai / UAE' });
+    addCust('SHAHEER', { contactPerson: 'Shaheer' });
+
+    return Array.from(map.values());
+  }, [customers, syncTick, availableQuotations, availableOpportunities, availableLeads]);
+
+  // Dynamic Point of Contact options for currently selected customer & defaults
+  const availableContacts = useMemo(() => {
+    const list = [
+      'Procurement In-Charge',
+      'Procurement Department',
+      'Mr. shemeem',
+      'Eng. Manaf Tariq',
+      'Rashid Al Nuaimi',
+      'Mustafa Shemin'
+    ];
+
+    const addContact = (name) => {
+      if (!name || typeof name !== 'string') return;
+      const clean = name.trim();
+      if (!clean || clean.toLowerCase() === 'select customer first' || clean.toLowerCase() === 'select contact person') return;
+      if (!list.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+        list.push(clean);
+      }
+    };
+
+    if (addOrderForm?.customerName) {
+      const cleanCust = addOrderForm.customerName.trim().toLowerCase();
+      const matchedC = allCustomers.find((c) => (c.name || '').trim().toLowerCase() === cleanCust);
+      if (matchedC?.contactPerson) addContact(matchedC.contactPerson);
+      if (matchedC?.name) addContact(matchedC.name);
+
+      availableLeads.forEach((l) => {
+        const lName = (l.customerName || l.company || l.name || '').trim().toLowerCase();
+        if (lName === cleanCust) {
+          if (l.contactName) addContact(l.contactName);
+          if (l.contactPerson) addContact(l.contactPerson);
+        }
+      });
+
+      availableOpportunities.forEach((o) => {
+        const oCust = (o.customer || '').trim().toLowerCase();
+        if (oCust === cleanCust) {
+          if (o.contactPerson) addContact(o.contactPerson);
+          if (o.attention) addContact(o.attention);
+        }
+      });
+
+      availableQuotations.forEach((q) => {
+        const qCust = (q.customer || '').trim().toLowerCase();
+        if (qCust === cleanCust) {
+          if (q.contactPerson) addContact(q.contactPerson);
+          if (q.attention) addContact(q.attention);
+          if (q.pointOfContact) addContact(q.pointOfContact);
+        }
+      });
+    }
+
+    if (addOrderForm?.pointOfContact) addContact(addOrderForm.pointOfContact);
+    if (addOrderForm?.contactPerson) addContact(addOrderForm.contactPerson);
+
+    return list;
+  }, [addOrderForm?.customerName, addOrderForm?.pointOfContact, addOrderForm?.contactPerson, allCustomers, availableLeads, availableOpportunities, availableQuotations]);
+
+  const handleCommercialOfferSelect = (offerNo) => {
+    if (!offerNo || offerNo === 'None (Direct Order)') {
+      setAddOrderForm((prev) => ({
+        ...prev,
+        commercialOfferNumber: 'None (Direct Order)'
+      }));
+      return;
+    }
+
+    const cleanOffer = String(offerNo || '').trim().toLowerCase();
+    const matched = availableQuotations.find((q) => {
+      const qNo = String(q.quotationNo || q.quotationNumber || '').trim().toLowerCase();
+      return (
+        qNo === cleanOffer ||
+        cleanOffer.startsWith(qNo) ||
+        qNo.startsWith(cleanOffer) ||
+        (q.customer && cleanOffer.includes(String(q.customer).toLowerCase()))
+      );
+    });
+
+    if (matched) {
+      const custName = matched.customer || 'Commercial Client';
+
+      // Find linked opportunity
+      const linkedOpp = availableOpportunities.find(
+        (o) =>
+          (matched.opportunityCode && (o.code === matched.opportunityCode || String(o.id) === String(matched.opportunityCode))) ||
+          (matched.opportunity && (o.name === matched.opportunity || o.code === matched.opportunity)) ||
+          (custName && o.customer && o.customer.toLowerCase() === custName.toLowerCase())
+      );
+
+      // Find linked lead
+      const matchedLead = availableLeads.find(
+        (l) =>
+          (linkedOpp?.leadCode && (l.leadCode === linkedOpp.leadCode || String(l.id) === String(linkedOpp.leadCode))) ||
+          (custName &&
+            ((l.customerName && l.customerName.toLowerCase() === custName.toLowerCase()) ||
+              (l.company && l.company.toLowerCase() === custName.toLowerCase()) ||
+              (l.name && l.name.toLowerCase() === custName.toLowerCase())))
+      );
+
+      // Resolve contact person / point of contact
+      const resolvedContact =
+        matched.pointOfContact ||
+        matched.contactPerson ||
+        matched.attention ||
+        linkedOpp?.contactPerson ||
+        linkedOpp?.attention ||
+        matchedLead?.contactName ||
+        matchedLead?.contactPerson ||
+        'Procurement In-Charge';
+
+      // Resolve amounts
+      const rawNum = matched.rawAmount
+        ? String(matched.rawAmount)
+        : matched.amount
+        ? String(parseFloat(String(matched.amount).replace(/[^0-9.]/g, '')) || '0.00')
+        : linkedOpp?.rawAmount
+        ? String(linkedOpp.rawAmount)
+        : '0.00';
+
+      const cleanDiscount = matched.discount
+        ? String(parseFloat(String(matched.discount).replace(/[^0-9.]/g, '')) || '0.00')
+        : '0.00';
+
+      const cleanAdj = matched.adjustment
+        ? String(parseFloat(String(matched.adjustment).replace(/[^0-9.]/g, '')) || '0.00')
+        : '0.00';
+
+      const vatType = matched.vatType || 'With VAT';
+      const vatRate = matched.vatRate ? String(matched.vatRate) : '5';
+
+      // Products from quotation or opportunity
+      const quotationProducts =
+        matched.products && matched.products.length > 0
+          ? matched.products
+          : linkedOpp?.products && linkedOpp.products.length > 0
+          ? linkedOpp.products
+          : [
+              {
+                id: 1,
+                itemName: 'tap',
+                description: 'Technical spec code: sd44',
+                itemCode: 'sd44',
+                brand: 'll',
+                quantity: 1,
+                price: 2000,
+                total: 2000
+              },
+              {
+                id: 2,
+                itemName: 'glue',
+                description: 'Technical spec code: fufu44',
+                itemCode: 'fufu44',
+                brand: 'lp',
+                quantity: 1,
+                price: 3000,
+                total: 3000
+              }
+            ];
+
+      let calcProdSum = 0;
+      quotationProducts.forEach((p) => {
+        calcProdSum += parseFloat(String(p.total ?? (p.quantity * p.price || 0)).replace(/,/g, '')) || 0;
+      });
+      const finalAmountStr = parseFloat(rawNum) >= calcProdSum && parseFloat(rawNum) > 0 ? rawNum : String(calcProdSum > 0 ? calcProdSum : 5250);
+
+      // Title
+      const orderTitle = matched.opportunity
+        ? `Order for ${custName} - ${matched.opportunity}`
+        : matched.description
+        ? `Order for ${custName} (${matched.description})`
+        : `Order for ${custName}`;
+
+      // Source & Source Name
+      const source = matched.source || linkedOpp?.source || matchedLead?.source || 'Direct Inbound';
+      const sourceName =
+        matched.sourceName ||
+        (matchedLead?.campaign ? matchedLead.campaign : `Commercial Quotation ${matched.quotationNo || offerNo}`);
+
+      // Location
+      const location = matched.location || linkedOpp?.location || matchedLead?.location || 'Dubai / UAE';
+
+      // Owner
+      const owner = matched.owner || linkedOpp?.owner || 'shemin';
+
+      // Business Opportunity
+      const bizOpp = matched.opportunity || linkedOpp?.name || matched.bizOpp || 'Supply And Installation';
+
+      // Lead code
+      const leadCode = matchedLead?.leadCode || linkedOpp?.leadCode || matched.leadNumber || '';
+
+      // Type
+      const orderType =
+        matched.type && matched.type !== 'File Upload'
+          ? matched.type
+          : 'Supply And Installation';
+
+      setAddOrderForm((prev) => ({
+        ...prev,
+        commercialOfferNumber: matched.quotationNo || matched.quotationNumber || offerNo,
+        customerName: custName,
+        orderTitle: orderTitle,
+        pointOfContact: resolvedContact,
+        contactPerson: resolvedContact,
+        leadNumber: leadCode,
+        source: source,
+        sourceName: sourceName,
+        amount: finalAmountStr,
+        vatType: vatType,
+        vatRate: vatRate,
+        discount: cleanDiscount,
+        adjustment: cleanAdj,
+        businessOpportunity: bizOpp,
+        orderOwner: owner,
+        location: location,
+        deliveryMethod: prev.deliveryMethod || 'Site Delivery UAE',
+        type: orderType,
+        comments: matched.description || prev.comments || `Commercial Order linked to Quotation ${matched.quotationNo || offerNo}`,
+        products: quotationProducts
+      }));
+
+      toast.success(`Auto-filled order details from Quotation ${matched.quotationNo || offerNo} (${custName})!`);
+    } else {
+      setAddOrderForm((prev) => ({ ...prev, commercialOfferNumber: offerNo }));
+    }
+  };
+
+  const handleCustomerSelect = (custVal) => {
+    setAddOrderForm((prev) => {
+      const matchedCust = allCustomers.find((c) => (c.name || c) === custVal);
+      const matchedLead = availableLeads.find((l) => (l.customerName || l.company || l.name) === custVal);
+      const defaultPoc = matchedCust?.contactPerson || matchedLead?.contactName || 'Procurement In-Charge';
+      return {
+        ...prev,
+        customerName: custVal,
+        orderTitle: prev.orderTitle && !prev.orderTitle.startsWith('Order for') ? prev.orderTitle : (custVal ? `Order for ${custVal}` : ''),
+        pointOfContact: defaultPoc,
+        contactPerson: defaultPoc,
+        location: matchedCust?.location || matchedCust?.city || matchedLead?.location || prev.location
+      };
+    });
+  };
+
+  const handleLeadSelectInOrder = (leadCodeVal) => {
+    if (!leadCodeVal) {
+      setAddOrderForm((prev) => ({ ...prev, leadNumber: '' }));
+      return;
+    }
+    const cleanVal = String(leadCodeVal || '').trim().toLowerCase();
+    const matchedLead = availableLeads.find((l) => {
+      const lCode = String(l.leadCode || '').trim().toLowerCase();
+      const cNum = String(l.codeNum || '').trim().toLowerCase();
+      const lId = String(l.id || '').trim().toLowerCase();
+      return lCode === cleanVal || cNum === cleanVal || lId === cleanVal || (lCode && cleanVal.includes(lCode));
+    });
+    if (matchedLead) {
+      let rawCust = (
+        (matchedLead.customerName && matchedLead.customerName !== 'New Enterprise Client' ? matchedLead.customerName : '') ||
+        (matchedLead.company && matchedLead.company !== 'New Enterprise Client' ? matchedLead.company : '') ||
+        matchedLead.contactName ||
+        matchedLead.name ||
+        'Commercial Client'
+      ).trim();
+      const companyOrCust = rawCust;
+      const personName = (
+        matchedLead.contactName ||
+        (matchedLead.name && matchedLead.name.toLowerCase() !== companyOrCust.toLowerCase() ? matchedLead.name : '') ||
+        companyOrCust
+      ).trim();
+      setAddOrderForm((prev) => ({
+        ...prev,
+        leadNumber: matchedLead.leadCode || leadCodeVal,
+        customerName: companyOrCust || prev.customerName,
+        pointOfContact: personName || prev.pointOfContact,
+        contactPerson: personName || prev.contactPerson,
+        location: matchedLead.location || prev.location
+      }));
+      toast.success(`Auto-filled details from Lead ${matchedLead.leadCode} (${companyOrCust})!`);
+    } else {
+      setAddOrderForm((prev) => ({ ...prev, leadNumber: leadCodeVal }));
+    }
+  };
+
+  // Product Line Items Management for Add/Edit Order Form
+  const handleAddProductRow = () => {
+    const newProduct = {
+      id: Date.now(),
+      itemName: '',
+      description: '',
+      itemCode: '',
+      brand: '',
+      quantity: 1,
+      price: 0,
+      total: 0
+    };
+    setAddOrderForm((prev) => ({
+      ...prev,
+      products: [...(prev.products || []), newProduct]
+    }));
+  };
+
+  const handleUpdateProductRow = (id, field, value) => {
+    setAddOrderForm((prev) => {
+      const updated = (prev.products || []).map((p) => {
+        if (p.id !== id) return p;
+        const next = { ...p, [field]: value };
+        const q = parseFloat(String(field === 'quantity' ? value : next.quantity)) || 0;
+        const pr = parseFloat(String(field === 'price' ? value : next.price).replace(/,/g, '')) || 0;
+        next.total = Math.round(q * pr * 100) / 100;
+        return next;
+      });
+
+      const sumTotal = updated.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+      return {
+        ...prev,
+        products: updated,
+        amount: sumTotal > 0 ? String(sumTotal) : prev.amount
+      };
+    });
+  };
+
+  const handleRemoveProductRow = (id) => {
+    setAddOrderForm((prev) => {
+      const updated = (prev.products || []).filter((p) => p.id !== id);
+      const sumTotal = updated.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0);
+      return {
+        ...prev,
+        products: updated,
+        amount: sumTotal > 0 ? String(sumTotal) : prev.amount
+      };
+    });
+  };
 
   // Dynamic VAT and Total Calculations for Image 3
   const calculatedVatAmount = useMemo(() => {
@@ -396,20 +868,37 @@ export default function SalesOrderView({
     if (matchedOpp?.products && Array.isArray(matchedOpp.products) && matchedOpp.products.length > 0) {
       return matchedOpp.products;
     }
-    const rawNum =
-      parseFloat(String(selectedOrderDetail?.rawAmount ?? selectedOrderDetail?.amount ?? 2000).replace(/[^0-9.]/g, '')) || 2000;
+    const matchedQuot = availableQuotations.find(
+      (q) =>
+        (q.quotationNo && (q.quotationNo === selectedOrderDetail?.commercialOfferNumber || selectedOrderDetail?.commercialOfferNumber?.includes(q.quotationNo))) ||
+        (q.customer && selectedOrderDetail?.customer && q.customer.toLowerCase() === selectedOrderDetail.customer.toLowerCase())
+    );
+    if (matchedQuot?.products && Array.isArray(matchedQuot.products) && matchedQuot.products.length > 0) {
+      return matchedQuot.products;
+    }
     return [
       {
         id: 1,
-        itemName: selectedOrderDetail?.orderTitle || 'tap',
-        itemCode: 'sk1786',
-        brand: 'lk',
+        itemName: 'tap',
+        description: 'Technical spec code: sd44',
+        itemCode: 'sd44',
+        brand: 'll',
         quantity: 1,
-        price: rawNum,
-        total: rawNum
+        price: 2000,
+        total: 2000
+      },
+      {
+        id: 2,
+        itemName: 'glue',
+        description: 'Technical spec code: fufu44',
+        itemCode: 'fufu44',
+        brand: 'lp',
+        quantity: 1,
+        price: 3000,
+        total: 3000
       }
     ];
-  }, [selectedOrderDetail, availableOpportunities]);
+  }, [selectedOrderDetail, availableOpportunities, availableQuotations]);
 
   const orderProductsCalculated = useMemo(() => {
     let sub = 0;
@@ -432,14 +921,19 @@ export default function SalesOrderView({
       ...prev,
       orderNumber: `CTSO#${3954 + orders.length}`,
       orderTitle: '',
-      customerName: 'Select Customer',
+      customerName: '',
+      pointOfContact: '',
+      contactPerson: '',
+      commercialOfferNumber: 'None (Direct Order)',
+      leadNumber: '',
       amount: '0.00',
       discount: '0.00',
       adjustment: '0.00',
       comments: '',
       orderTags: '',
       lpoNumber: '',
-      reference: ''
+      reference: '',
+      products: []
     }));
     setViewMode('create');
   };
@@ -460,7 +954,7 @@ export default function SalesOrderView({
     setAddOrderForm({
       orderTitle: item.details || '',
       opportunity: item.opportunity || '',
-      customerName: item.customer || 'Select Customer',
+      customerName: item.customer || '',
       currency: 'AED',
       amount: cleanAmt > 0 ? String(cleanAmt) : '0.00',
       vatType: cleanVat > 0 ? 'With VAT' : 'Without VAT',
@@ -472,9 +966,9 @@ export default function SalesOrderView({
       location: item.location || '',
       type: item.category || '',
       deliveryMethod: item.deliveryMethod || '',
-      contactPerson: item.contactPerson || '',
+      contactPerson: item.contactPerson || item.pointOfContact || '',
       orderOwner: item.owner || 'shemin',
-      pointOfContact: item.pointOfContact || '',
+      pointOfContact: item.pointOfContact || item.contactPerson || '',
       sourceName: item.sourceName || '',
       orderNumber: item.orderNo || '',
       commercialOfferNumber: item.commercialOfferNumber || 'None (Direct Order)',
@@ -486,7 +980,8 @@ export default function SalesOrderView({
       lpoDate: item.lpoDate || '',
       comments: item.comments || '',
       orderStatus: item.orderStatus || 'Pending',
-      reference: item.reference || ''
+      reference: item.reference || '',
+      products: item.products || []
     });
     setViewMode('create');
   };
@@ -530,11 +1025,23 @@ export default function SalesOrderView({
                 receivable: `AED ${totalVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 campaign: addOrderForm.campaign || o.campaign,
                 bizOpp: addOrderForm.businessOpportunity || o.bizOpp,
-                comments: addOrderForm.comments
+                comments: addOrderForm.comments,
+                pointOfContact: addOrderForm.pointOfContact,
+                contactPerson: addOrderForm.contactPerson,
+                leadNumber: addOrderForm.leadNumber,
+                commercialOfferNumber: addOrderForm.commercialOfferNumber,
+                source: addOrderForm.source,
+                sourceName: addOrderForm.sourceName,
+                location: addOrderForm.location,
+                deliveryMethod: addOrderForm.deliveryMethod,
+                products: addOrderForm.products || o.products || []
               }
             : o
         )
       );
+      try {
+        window.dispatchEvent(new Event('alzaydan_order_updated'));
+      } catch {}
       toast.success(`Sales Order "${addOrderForm.orderNumber.trim()}" updated successfully!`);
       setEditingOrderId(null);
       setViewMode('list');
@@ -559,10 +1066,22 @@ export default function SalesOrderView({
       invoiceStatus: 'Not Invoiced',
       campaign: addOrderForm.campaign || 'Direct',
       bizOpp: addOrderForm.businessOpportunity || 'New Business',
-      comments: addOrderForm.comments
+      comments: addOrderForm.comments,
+      pointOfContact: addOrderForm.pointOfContact,
+      contactPerson: addOrderForm.contactPerson,
+      leadNumber: addOrderForm.leadNumber,
+      commercialOfferNumber: addOrderForm.commercialOfferNumber,
+      source: addOrderForm.source,
+      sourceName: addOrderForm.sourceName,
+      location: addOrderForm.location,
+      deliveryMethod: addOrderForm.deliveryMethod,
+      products: addOrderForm.products || []
     };
 
     setOrders((prev) => [newOrder, ...prev]);
+    try {
+      window.dispatchEvent(new Event('alzaydan_order_updated'));
+    } catch {}
     toast.success(`Sales Order "${newOrder.orderNo}" created successfully!`);
     setViewMode('list');
 
@@ -571,13 +1090,19 @@ export default function SalesOrderView({
       ...prev,
       orderNumber: `CTSO#${3955 + orders.length}`,
       orderTitle: '',
+      customerName: '',
+      pointOfContact: '',
+      contactPerson: '',
+      commercialOfferNumber: 'None (Direct Order)',
+      leadNumber: '',
       amount: '0.00',
       discount: '0.00',
       adjustment: '0.00',
       comments: '',
       orderTags: '',
       lpoNumber: '',
-      reference: ''
+      reference: '',
+      products: []
     }));
   };
 
@@ -733,7 +1258,7 @@ export default function SalesOrderView({
                 </div>
               </div>
 
-              {/* RIGHT COLUMN: Overview Metric Cards (Simple & Clean: Actual Price | VAT | Total Order Value) */}
+              {/* RIGHT COLUMN: Overview Metric Cards & Itemized Products */}
               <div className="lg:col-span-6 space-y-4">
                 <div className="font-bold text-slate-800 text-xs pb-1 flex items-center justify-between">
                   <span>Overview</span>
@@ -775,9 +1300,91 @@ export default function SalesOrderView({
                         AED {orderProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                     </div>
-                    <div className="w-7 h-7 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs">
+                    <div className="w-7 h-7 rounded-lg bg-[#011635] text-white flex items-center justify-center font-bold text-xs">
                       $
                     </div>
+                  </div>
+                </div>
+
+                {/* Products / Items Details (Right Column - Fills Empty Space & Balances Left Column) */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-5 space-y-3">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-[#16477A]" />
+                      <span className="text-xs font-bold text-slate-800">Products / Items Details</span>
+                      {selectedOrderDetail.businessOpportunity && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-[#16477A] border border-blue-200">
+                          {selectedOrderDetail.businessOpportunity}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {currentOrderProducts.length} {currentOrderProducts.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
+                          <th className="py-2.5 px-3">Item Name</th>
+                          <th className="py-2.5 px-2.5">Code</th>
+                          <th className="py-2.5 px-2.5">Brand</th>
+                          <th className="py-2.5 px-2 text-center">QTY</th>
+                          <th className="py-2.5 px-2.5 text-right">Unit Price</th>
+                          <th className="py-2.5 px-3 text-right">Total (AED)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentOrderProducts.map((p, idx) => (
+                          <tr key={p.id || idx} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3">
+                              <span className="font-semibold text-slate-900 block">{p.itemName || '—'}</span>
+                              {(p.description || p.itemCode) && (
+                                <span className="text-[10px] text-slate-500 block">
+                                  {p.description || `Technical spec code: ${p.itemCode}`}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-2.5 font-mono text-slate-600 text-[11px]">{p.itemCode || '—'}</td>
+                            <td className="py-2.5 px-2.5 text-slate-700">{p.brand || '—'}</td>
+                            <td className="py-2.5 px-2 text-center font-bold text-slate-800">{p.quantity || 1}</td>
+                            <td className="py-2.5 px-2.5 text-right font-mono text-slate-700">
+                              {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[#16477A]">
+                              {(parseFloat(p.total ?? (p.quantity * p.price || 0)) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
+                          <td colSpan={5} className="py-2 px-3 text-right text-slate-600">
+                            Subtotal:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-900">
+                            AED {orderProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-slate-50/80 font-bold text-xs">
+                          <td colSpan={5} className="py-1.5 px-3 text-right text-slate-500 font-medium">
+                            5% UAE VAT:
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-slate-700">
+                            AED {orderProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-blue-50/60 font-extrabold text-xs text-[#011635] border-t border-blue-100">
+                          <td colSpan={5} className="py-2 px-3 text-right text-[#011635]">
+                            Total Order Value:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-[#16477A] text-sm">
+                            AED {orderProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 </div>
               </div>
@@ -810,81 +1417,6 @@ export default function SalesOrderView({
                 )}
               </div>
             )}
-
-            {/* Products / Items Details (Inherited from Opportunity) */}
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-5 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-blue-600" />
-                  <span className="text-xs font-bold text-slate-800">Products / Items Details</span>
-                  {selectedOrderDetail.businessOpportunity && (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                      {selectedOrderDetail.businessOpportunity}
-                    </span>
-                  )}
-                </div>
-                <span className="text-[11px] font-bold text-slate-500">
-                  {currentOrderProducts.length} {currentOrderProducts.length === 1 ? 'item' : 'items'}
-                </span>
-              </div>
-
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead>
-                    <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
-                      <th className="py-2.5 px-3">Item Name</th>
-                      <th className="py-2.5 px-3">Code</th>
-                      <th className="py-2.5 px-3">Brand</th>
-                      <th className="py-2.5 px-3 text-center">QTY</th>
-                      <th className="py-2.5 px-3 text-right">Unit Price (AED)</th>
-                      <th className="py-2.5 px-3 text-right">Total (AED)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {currentOrderProducts.map((p, idx) => (
-                      <tr key={p.id || idx} className="hover:bg-slate-50/50">
-                        <td className="py-2.5 px-3 font-semibold text-slate-900">{p.itemName || '—'}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-600">{p.itemCode || '—'}</td>
-                        <td className="py-2.5 px-3 text-slate-700">{p.brand || '—'}</td>
-                        <td className="py-2.5 px-3 text-center font-bold text-slate-800">{p.quantity || 1}</td>
-                        <td className="py-2.5 px-3 text-right font-mono text-slate-700">
-                          {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-2.5 px-3 text-right font-mono font-bold text-blue-700">
-                          {(parseFloat(p.total) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
-                      <td colSpan={5} className="py-2.5 px-3 text-right text-slate-600">
-                        Subtotal:
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-slate-900">
-                        AED {orderProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr className="bg-slate-50/80 font-bold text-xs">
-                      <td colSpan={5} className="py-2 px-3 text-right text-slate-500 font-medium">
-                        5% UAE VAT:
-                      </td>
-                      <td className="py-2 px-3 text-right font-mono text-slate-700">
-                        AED {orderProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                    <tr className="bg-blue-50/60 font-extrabold text-xs text-blue-900 border-t border-blue-100">
-                      <td colSpan={5} className="py-2.5 px-3 text-right text-blue-900">
-                        Total Order Value:
-                      </td>
-                      <td className="py-2.5 px-3 text-right font-mono text-blue-700 text-sm">
-                        AED {orderProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
 
             {/* Bottom Action Buttons: Back on left, Print/Approve/Edit/Delete on right */}
             <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
@@ -1027,15 +1559,26 @@ export default function SalesOrderView({
                   <select
                     required
                     value={addOrderForm.customerName}
-                    onChange={(e) => setAddOrderForm({ ...addOrderForm, customerName: e.target.value })}
+                    onChange={(e) => handleCustomerSelect(e.target.value)}
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
                   >
                     <option value="">Select Customer</option>
-                    {customers.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
+                    {addOrderForm.customerName &&
+                      addOrderForm.customerName !== 'Select Customer' &&
+                      !allCustomers.some((c) => (c.name || c) === addOrderForm.customerName) && (
+                        <option value={addOrderForm.customerName}>
+                          {addOrderForm.customerName}
+                        </option>
+                      )}
+                    {allCustomers.map((c) => {
+                      const cName = typeof c === 'string' ? c : (c.name || c.company || '');
+                      if (!cName) return null;
+                      return (
+                        <option key={`so-cust-opt-${cName}`} value={cName}>
+                          {cName}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
 
@@ -1094,10 +1637,37 @@ export default function SalesOrderView({
                         type="text"
                         value={addOrderForm.orderDate}
                         onChange={(e) => setAddOrderForm({ ...addOrderForm, orderDate: e.target.value })}
-                        placeholder="16-11-2026"
-                        className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                        placeholder="dd-mm-yyyy"
+                        className="w-full pl-3.5 pr-14 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
                       />
-                      <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
+                        {addOrderForm.orderDate && (
+                          <button
+                            type="button"
+                            onClick={() => setAddOrderForm({ ...addOrderForm, orderDate: '' })}
+                            className="hover:text-slate-600 cursor-pointer p-0.5"
+                            title="Clear Date"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        )}
+                        <label className="cursor-pointer hover:text-blue-600 transition-colors p-0.5" title="Choose date">
+                          <Calendar className="w-3.5 h-3.5" />
+                          <input
+                            type="date"
+                            className="sr-only"
+                            onClick={(e) => {
+                              try { e.target.showPicker(); } catch {}
+                            }}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                const [y, m, d] = e.target.value.split('-');
+                                setAddOrderForm({ ...addOrderForm, orderDate: `${d}-${m}-${y}` });
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
                     </div>
                     <div className="relative">
                       <input
@@ -1329,13 +1899,27 @@ export default function SalesOrderView({
                   </div>
                   <select
                     value={addOrderForm.pointOfContact}
-                    onChange={(e) => setAddOrderForm({ ...addOrderForm, pointOfContact: e.target.value })}
+                    onChange={(e) =>
+                      setAddOrderForm((prev) => ({
+                        ...prev,
+                        pointOfContact: e.target.value,
+                        contactPerson: e.target.value
+                      }))
+                    }
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
                   >
-                    <option value="Select Customer First">Select Customer First</option>
-                    <option value="Eng. Manaf Tariq">Eng. Manaf Tariq</option>
-                    <option value="Rashid Al Nuaimi">Rashid Al Nuaimi</option>
-                    <option value="Mustafa Shemin">Mustafa Shemin</option>
+                    <option value="">Select Contact Person</option>
+                    {addOrderForm.pointOfContact &&
+                      !availableContacts.includes(addOrderForm.pointOfContact) && (
+                        <option value={addOrderForm.pointOfContact}>
+                          {addOrderForm.pointOfContact}
+                        </option>
+                      )}
+                    {availableContacts.map((contact) => (
+                      <option key={`contact-opt-${contact}`} value={contact}>
+                        {contact}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1397,11 +1981,23 @@ export default function SalesOrderView({
                       className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
                     >
                       <option value="None (Direct Order)">None (Direct Order)</option>
-                      {availableQuotations.map((q) => (
-                        <option key={`quot-opt-${q.id || q.quotationNo}`} value={q.quotationNo || q.quotationNumber}>
-                          {q.quotationNo || q.quotationNumber} - {q.customer}
-                        </option>
-                      ))}
+                      {addOrderForm.commercialOfferNumber &&
+                        addOrderForm.commercialOfferNumber !== 'None (Direct Order)' &&
+                        !availableQuotations.some(
+                          (q) => (q.quotationNo || q.quotationNumber) === addOrderForm.commercialOfferNumber
+                        ) && (
+                          <option value={addOrderForm.commercialOfferNumber}>
+                            {addOrderForm.commercialOfferNumber}
+                          </option>
+                        )}
+                      {availableQuotations.map((q) => {
+                        const qNo = q.quotationNo || q.quotationNumber;
+                        return (
+                          <option key={`quot-opt-${q.id || qNo}`} value={qNo}>
+                            {qNo} - {q.customer || q.opportunity || 'Offer'}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -1417,6 +2013,10 @@ export default function SalesOrderView({
                     className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
                   >
                     <option value="">Select Lead (Optional)</option>
+                    {addOrderForm.leadNumber &&
+                      !availableLeads.some((l) => l.leadCode === addOrderForm.leadNumber) && (
+                        <option value={addOrderForm.leadNumber}>{addOrderForm.leadNumber}</option>
+                      )}
                     {availableLeads.map((l) => (
                       <option key={`order-lead-${l.id || l.leadCode}`} value={l.leadCode}>
                         {l.leadCode} - {l.company || l.customerName || l.name}
@@ -1510,9 +2110,36 @@ export default function SalesOrderView({
                       placeholder="dd-mm-yyyy"
                       value={addOrderForm.deliveryDate}
                       onChange={(e) => setAddOrderForm({ ...addOrderForm, deliveryDate: e.target.value })}
-                      className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                      className="w-full pl-3.5 pr-14 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
+                      {addOrderForm.deliveryDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOrderForm({ ...addOrderForm, deliveryDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-0.5" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch {}
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOrderForm({ ...addOrderForm, deliveryDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1527,9 +2154,36 @@ export default function SalesOrderView({
                       placeholder="dd-mm-yyyy"
                       value={addOrderForm.lpoDate}
                       onChange={(e) => setAddOrderForm({ ...addOrderForm, lpoDate: e.target.value })}
-                      className="w-full pl-3.5 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
+                      className="w-full pl-3.5 pr-14 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 outline-none focus:bg-white focus:border-[#011635]"
                     />
-                    <Calendar className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-slate-400">
+                      {addOrderForm.lpoDate && (
+                        <button
+                          type="button"
+                          onClick={() => setAddOrderForm({ ...addOrderForm, lpoDate: '' })}
+                          className="hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Clear Date"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                      <label className="cursor-pointer hover:text-blue-600 transition-colors p-0.5" title="Choose date">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <input
+                          type="date"
+                          className="sr-only"
+                          onClick={(e) => {
+                            try { e.target.showPicker(); } catch {}
+                          }}
+                          onChange={(e) => {
+                            if (e.target.value) {
+                              const [y, m, d] = e.target.value.split('-');
+                              setAddOrderForm({ ...addOrderForm, lpoDate: `${d}-${m}-${y}` });
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1579,6 +2233,174 @@ export default function SalesOrderView({
                   />
                 </div>
               </div>
+            </div>
+
+            {/* ================= PRODUCT / ITEM DETAILS SECTION ================= */}
+            <div className="bg-slate-50/70 rounded-2xl border border-slate-200/90 p-5 space-y-4 shadow-2xs">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200/80">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-[#16477A]" />
+                  <h4 className="font-bold text-slate-900 text-sm">Product / Item Details</h4>
+                  {addOrderForm.commercialOfferNumber && addOrderForm.commercialOfferNumber !== 'None (Direct Order)' && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-blue-50 text-[#16477A] border border-blue-200">
+                      Quotation {addOrderForm.commercialOfferNumber}
+                    </span>
+                  )}
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    ({(addOrderForm.products || []).length} {(addOrderForm.products || []).length === 1 ? 'item' : 'items'})
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleAddProductRow}
+                  className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-2xs cursor-pointer transition-colors self-start sm:self-auto"
+                >
+                  <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>+ Add Product</span>
+                </button>
+              </div>
+
+              {(addOrderForm.products || []).length === 0 ? (
+                <div className="py-8 text-center border-2 border-dashed border-slate-200 rounded-xl bg-white/60">
+                  <Package className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-semibold text-slate-700">No products added yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Select a Commercial Quotation above to auto-fill products, or click &ldquo;+ Add Product&rdquo; to add custom line items.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleAddProductRow}
+                    className="mt-3 px-3.5 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-2xs transition"
+                  >
+                    <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>+ Add Product</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+                    <table className="w-full text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
+                          <th className="py-2.5 px-3 w-10 text-center">#</th>
+                          <th className="py-2.5 px-3 min-w-[200px]">Item Name &amp; Description <span className="text-rose-500">*</span></th>
+                          <th className="py-2.5 px-3 min-w-[110px]">Item Code</th>
+                          <th className="py-2.5 px-3 min-w-[100px]">Brand</th>
+                          <th className="py-2.5 px-3 w-24 text-center">Quantity</th>
+                          <th className="py-2.5 px-3 w-32 text-right">Unit Price (AED)</th>
+                          <th className="py-2.5 px-3 w-32 text-right">Total (AED)</th>
+                          <th className="py-2.5 px-3 w-12 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {addOrderForm.products.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                            <td className="py-2.5 px-3 text-center text-slate-400 font-mono text-[11px] font-bold">
+                              {String(idx + 1).padStart(2, '0')}
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Enter item name..."
+                                value={item.itemName || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'itemName', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Technical description / specs (optional)..."
+                                value={item.description || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'description', e.target.value)}
+                                className="w-full mt-1 px-2.5 py-1 bg-white border border-dashed border-slate-300 rounded-md text-[11px] text-slate-600 outline-none focus:border-[#16477A]"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Code / SKU"
+                                value={item.itemCode || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'itemCode', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono text-slate-700 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="text"
+                                placeholder="Brand / Model"
+                                value={item.brand || ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'brand', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-700 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="number"
+                                min="1"
+                                value={item.quantity || 1}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'quantity', e.target.value)}
+                                className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-center text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                            </td>
+                            <td className="py-2 px-3">
+                              <input
+                                type="number"
+                                step="0.01"
+                                placeholder="0.00"
+                                value={item.price ?? ''}
+                                onChange={(e) => handleUpdateProductRow(item.id, 'price', e.target.value)}
+                                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-right text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                              />
+                            </td>
+                            <td className="py-2.5 px-3 text-right font-mono font-bold text-[#16477A] text-xs">
+                              {(parseFloat(item.total ?? (item.quantity * item.price || 0)) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-2.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveProductRow(item.id)}
+                                className="p-1 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                                title="Remove item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
+                          <td colSpan={6} className="py-2.5 px-3 text-right text-slate-600">
+                            Subtotal (Net Amount):
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-slate-900">
+                            AED {(parseFloat(String(addOrderForm.amount).replace(/,/g, '')) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                        <tr className="bg-slate-50/80 font-bold text-xs">
+                          <td colSpan={6} className="py-2 px-3 text-right text-slate-500 font-medium">
+                            UAE VAT ({addOrderForm.vatRate || 5}%):
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-700">
+                            AED {calculatedVatAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                        <tr className="bg-blue-50/60 font-extrabold text-xs text-[#011635] border-t border-blue-100">
+                          <td colSpan={6} className="py-2.5 px-3 text-right text-[#011635]">
+                            Grand Total (with VAT):
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-mono text-[#16477A] text-sm">
+                            AED {calculatedTotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Bottom Action Row: [SUBMIT] and [← Back] (Order Form toggle removed per user instruction) */}

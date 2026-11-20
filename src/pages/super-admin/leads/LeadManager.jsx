@@ -185,6 +185,33 @@ export default function LeadManager({
   const [editingLeadId, setEditingLeadId] = useState(null);
   const [statusRatingLead, setStatusRatingLead] = useState(null);
   const [statusRatingDraft, setStatusRatingDraft] = useState({ status: 'Pending', rating: 'COLD', comments: '', addNote: false });
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [newCustomerDraft, setNewCustomerDraft] = useState({
+    name: '',
+    contactPerson: '',
+    phone: '',
+    email: '',
+    location: 'Dubai, UAE'
+  });
+  const [isAddBizOppModalOpen, setIsAddBizOppModalOpen] = useState(false);
+  const [newBizOppDraft, setNewBizOppDraft] = useState('');
+  const [bizOpportunities, setBizOpportunities] = useState(() => {
+    try {
+      const saved = localStorage.getItem('alzaydan_biz_opportunities');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      'Commercial Chillers Supply',
+      'HVAC Maintenance Contract',
+      'Cold Storage Retrofit',
+      'District Cooling Substations',
+      'Industrial Chillers Supply',
+      'HVAC Installation'
+    ];
+  });
 
   // Reassign modal state
   const [bulkAssignTarget, setBulkAssignTarget] = useState(defaultAssigneeName);
@@ -300,22 +327,23 @@ export default function LeadManager({
   });
 
   // Live leads records (Safely initialized from props or storage, preserving existing user data)
+  // Live leads records (Safely initialized from storage or props)
   const [leadList, setLeadList] = useState(() => {
-    const fromProps = (Array.isArray(leads) && leads.length > 0) ? leads : ((Array.isArray(_leads) && _leads.length > 0) ? _leads : null);
-    if (fromProps) return fromProps;
     try {
       const saved = localStorage.getItem('alzaydan_crm_leads');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     } catch {}
+    const fromProps = (Array.isArray(leads) && leads.length > 0) ? leads : ((Array.isArray(_leads) && _leads.length > 0) ? _leads : null);
+    if (fromProps) return fromProps;
     return [];
   });
 
-  // Sync back to parent leads state and localStorage when leadList changes
+  // Sync back to parent leads state and localStorage when leadList changes (persisting empty list on delete)
   useEffect(() => {
-    if (leadList.length > 0) {
+    if (Array.isArray(leadList)) {
       try {
         localStorage.setItem('alzaydan_crm_leads', JSON.stringify(leadList));
       } catch {}
@@ -324,6 +352,72 @@ export default function LeadManager({
       setLeads(leadList);
     }
   }, [leadList, setLeads]);
+
+  // Synchronize when lead updates occur elsewhere
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const saved = localStorage.getItem('alzaydan_crm_leads');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) setLeadList(parsed);
+        }
+      } catch {}
+    };
+    window.addEventListener('alzaydan_lead_updated', handleSync);
+    return () => window.removeEventListener('alzaydan_lead_updated', handleSync);
+  }, []);
+
+  // Available customers from props and localStorage (always synchronized)
+  const availableCustomers = useMemo(() => {
+    let list = Array.isArray(customers) ? [...customers] : [];
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_customers');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((pc) => {
+            if (pc && (pc.name || pc.company) && !list.some((c) => (c.name || c.company || '').toLowerCase() === (pc.name || pc.company || '').toLowerCase())) {
+              list.push(pc);
+            }
+          });
+        }
+      }
+    } catch {}
+    return list;
+  }, [customers]);
+
+  // Automatically clean legacy placeholder strings in stored leads without resurrecting deleted customers
+  useEffect(() => {
+    try {
+      const savedLeads = localStorage.getItem('alzaydan_crm_leads');
+      if (savedLeads) {
+        const parsed = JSON.parse(savedLeads);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          let leadsUpdated = false;
+          const cleanedLeads = parsed.map((l) => {
+            let comp = l.company;
+            let cust = l.customerName;
+            if (comp === 'New Enterprise Client') {
+              comp = l.contactName || l.name || '';
+              leadsUpdated = true;
+            }
+            if (cust === 'New Enterprise Client') {
+              cust = l.contactName || l.name || '';
+              leadsUpdated = true;
+            }
+            if (!cust && comp) { cust = comp; leadsUpdated = true; }
+            if (!comp && cust) { comp = cust; leadsUpdated = true; }
+            return { ...l, company: comp, customerName: cust };
+          });
+          if (leadsUpdated) {
+            localStorage.setItem('alzaydan_crm_leads', JSON.stringify(cleanedLeads));
+            setLeadList(cleanedLeads);
+          }
+        }
+      }
+    } catch {}
+  }, []);
 
   // Combined owners from active current users
   const availableOwners = useMemo(() => {
@@ -376,10 +470,22 @@ export default function LeadManager({
 
   // Delete single lead
   const handleDeleteLead = (id, name) => {
-    setLeadList((prev) => prev.filter((l) => l.id !== id));
-    setSelectedLeadIds((prev) => prev.filter((i) => i !== id));
+    setLeadList((prev) => {
+      const updated = prev.filter(
+        (l) => String(l.id) !== String(id) && l.leadCode !== id && (name ? l.name !== name : true)
+      );
+      try {
+        localStorage.setItem('alzaydan_crm_leads', JSON.stringify(updated));
+        if (typeof setLeads === 'function') {
+          setLeads(updated);
+        }
+        window.dispatchEvent(new Event('alzaydan_lead_updated'));
+      } catch {}
+      return updated;
+    });
+    setSelectedLeadIds((prev) => prev.filter((i) => String(i) !== String(id)));
     setActiveActionMenuId(null);
-    toast.success(`Lead "${name}" deleted`);
+    toast.success(`Lead "${name || id}" deleted`);
   };
 
   // Bulk reassign
@@ -465,12 +571,18 @@ export default function LeadManager({
   // Handle Add Lead form submit (matching Image 1)
   const handleAddLeadSubmit = (e) => {
     e.preventDefault();
-    if (!addLeadForm.contactName.trim() && !addLeadForm.customerName.trim()) {
-      toast.error('Please enter Contact Name or Customer Name');
+    const finalCustName = (addLeadForm.customerName || '').trim();
+    const finalContactName = (addLeadForm.contactName || '').trim();
+    if (!finalCustName && !finalContactName) {
+      toast.error('Please enter Customer Name or Contact Name');
       return;
     }
 
     const nextId = Date.now();
+    const phoneFormatted = addLeadForm.businessMobile
+      ? `${addLeadForm.businessMobilePrefix} ${addLeadForm.businessMobile}`
+      : '+971 50 123 4567';
+
     const createdLead = {
       id: nextId,
       codeNum: String(100016 + leadList.length),
@@ -479,14 +591,12 @@ export default function LeadManager({
       assignedDate: addLeadForm.leadDate || '16-11-2026',
       assignedTo: addLeadForm.assignTo.replace(' (EMPLOYEE)', ''),
       assigneeAvatarBg: 'bg-[#011635] text-white',
-      name: (addLeadForm.contactName || addLeadForm.customerName).trim().toUpperCase(),
-      contactName: addLeadForm.contactName.trim(),
-      customerName: addLeadForm.customerName.trim(),
-      company: addLeadForm.customerName.trim() || 'New Enterprise Client',
+      name: (finalCustName || finalContactName).toUpperCase(),
+      contactName: finalContactName,
+      customerName: finalCustName || finalContactName,
+      company: finalCustName || finalContactName,
       location: addLeadForm.location.trim() || 'Dubai, UAE',
-      phone: addLeadForm.businessMobile
-        ? `${addLeadForm.businessMobilePrefix} ${addLeadForm.businessMobile}`
-        : '+971 50 123 4567',
+      phone: phoneFormatted,
       businessMobile: addLeadForm.businessMobile,
       email: addLeadForm.email.trim() || 'info@client.ae',
       spec: 'Enquiry',
@@ -507,8 +617,55 @@ export default function LeadManager({
       verified: true
     };
 
+    // Auto-create / register customer in Customer Directory & localStorage
+    if (finalCustName) {
+      try {
+        const storedCust = JSON.parse(localStorage.getItem('alzaydan_crm_customers') || '[]');
+        const existingIdx = storedCust.findIndex((c) => (c.name || '').toLowerCase() === finalCustName.toLowerCase());
+        const custRecord = {
+          id: existingIdx >= 0 ? storedCust[existingIdx].id : Date.now() + 10,
+          code: existingIdx >= 0 ? storedCust[existingIdx].code : `AZ-CUST-${100 + storedCust.length + 1}`,
+          date: addLeadForm.leadDate || new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+          name: finalCustName,
+          company: finalCustName,
+          type: 'Customer',
+          owner: addLeadForm.leadOwner.replace(' (EMPLOYEE)', ''),
+          ownerAvatarBg: 'bg-[#011635] text-white',
+          phone: phoneFormatted,
+          email: addLeadForm.email.trim() || 'info@client.ae',
+          location: addLeadForm.location.trim() || 'Dubai, UAE',
+          address: addLeadForm.location.trim() || 'Dubai, UAE',
+          website: addLeadForm.website.trim(),
+          primaryContact: finalContactName,
+          contactPerson: finalContactName,
+          contactPhone: phoneFormatted,
+          contactEmail: addLeadForm.email.trim() || 'info@client.ae',
+          status: 'Active',
+          lastEnquiry: addLeadForm.leadDate || new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+          openEnquiries: '1 Enquiry',
+          lastOrder: 'N/A',
+          outstanding: 'AED 0.00'
+        };
+
+        let updatedCustList;
+        if (existingIdx >= 0) {
+          updatedCustList = [...storedCust];
+          updatedCustList[existingIdx] = { ...storedCust[existingIdx], ...custRecord };
+        } else {
+          updatedCustList = [custRecord, ...storedCust];
+        }
+        localStorage.setItem('alzaydan_crm_customers', JSON.stringify(updatedCustList));
+        if (typeof setCustomers === 'function') {
+          setCustomers(updatedCustList);
+        }
+        window.dispatchEvent(new Event('alzaydan_customer_updated'));
+      } catch (err) {
+        console.error('Failed to auto-register customer from lead:', err);
+      }
+    }
+
     setLeadList((prev) => [createdLead, ...prev]);
-    toast.success(`Lead ${createdLead.leadCode} (${createdLead.name}) created successfully!`);
+    toast.success(`Lead ${createdLead.leadCode} (${createdLead.name}) and Customer "${finalCustName}" created successfully!`);
     setViewMode('list');
 
     // Reset form for next entry
@@ -1085,17 +1242,53 @@ export default function LeadManager({
 
                 {/* 6. Customer Name */}
                 <div>
-                  <label className="flex items-center justify-between text-xs font-semibold text-slate-700 mb-1.5">
-                    <span>Customer Name</span>
-                    <span className="text-[10px] font-normal text-slate-400">Company / Organization</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Company or Organization Name"
-                    value={addLeadForm.customerName}
-                    onChange={(e) => setAddLeadForm({ ...addLeadForm, customerName: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] placeholder:text-slate-400"
-                  />
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                      <span>Customer Name</span>
+                      <span className="text-[10px] font-normal text-slate-400">Company / Organization</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddCustomerModalOpen(true)}
+                      className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer flex items-center gap-1"
+                    >
+                      <Plus className="w-3 h-3 stroke-[2.5]" />
+                      <span>+ New</span>
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Company or Organization Name"
+                      value={addLeadForm.customerName}
+                      list="lead-customer-options"
+                      onChange={(e) => {
+                        const customerName = e.target.value;
+                        const matchedCustomer = availableCustomers.find((customer) =>
+                          String(customer.name || customer.company || '').trim().toLowerCase() === customerName.trim().toLowerCase()
+                        );
+                        setAddLeadForm((prev) => ({
+                          ...prev,
+                          customerName,
+                          ...(matchedCustomer ? {
+                            contactName: prev.contactName || matchedCustomer.primaryContact || matchedCustomer.contactPerson || '',
+                            businessMobile: prev.businessMobile || (matchedCustomer.phone || matchedCustomer.tel || '').replace(/^\+971\s*/, ''),
+                            email: prev.email || matchedCustomer.email || matchedCustomer.contactEmail || prev.email,
+                            location: prev.location || matchedCustomer.location || matchedCustomer.address || prev.location,
+                            website: prev.website || matchedCustomer.website || prev.website
+                          } : {})
+                        }));
+                      }}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] placeholder:text-slate-400"
+                    />
+                    <datalist id="lead-customer-options">
+                      {[...new Map(availableCustomers
+                        .map((customer) => String(customer.name || customer.company || '').trim())
+                        .filter(Boolean)
+                        .map((name) => [name.toLowerCase(), name])).values()]
+                        .map((name) => <option key={name} value={name} />)}
+                    </datalist>
+                  </div>
                 </div>
 
                 {/* 7. Website */}
@@ -1358,14 +1551,16 @@ export default function LeadManager({
                       className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
                     >
                       <option value="">Select Business Opportunity</option>
-                      <option value="Commercial Chillers Supply">Commercial Chillers Supply</option>
-                      <option value="HVAC Maintenance Contract">HVAC Maintenance Contract</option>
-                      <option value="Cold Storage Retrofit">Cold Storage Retrofit</option>
-                      <option value="District Cooling Substations">District Cooling Substations</option>
+                      {bizOpportunities.map((b) => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                      {addLeadForm.businessOpportunity && !bizOpportunities.includes(addLeadForm.businessOpportunity) && (
+                        <option value={addLeadForm.businessOpportunity}>{addLeadForm.businessOpportunity}</option>
+                      )}
                     </select>
                     <button
                       type="button"
-                      onClick={() => toast.info('New Business Opportunity added')}
+                      onClick={() => setIsAddBizOppModalOpen(true)}
                       className="px-3 py-2 bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold rounded-xl flex items-center gap-1 shadow-xs transition cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5 stroke-[3]" />
@@ -1834,7 +2029,7 @@ export default function LeadManager({
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
                             <span className="font-extrabold text-blue-600 text-xs">
-                              {lead.name}
+                              {lead.customerName || lead.company || lead.name}
                             </span>
                             <button
                               type="button"
@@ -1845,6 +2040,12 @@ export default function LeadManager({
                               <Info className="w-3.5 h-3.5" />
                             </button>
                           </div>
+                          {lead.contactName && lead.contactName.toLowerCase() !== String(lead.customerName || lead.company || '').toLowerCase() && (
+                            <div className="text-[11px] text-slate-600 flex items-center gap-1">
+                              <span className="font-semibold text-slate-500">Contact:</span>
+                              <span className="font-medium text-slate-700">{lead.contactName}</span>
+                            </div>
+                          )}
                           <div className="flex items-center gap-1.5 text-slate-500 text-[11px]">
                             <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
                             <span className="truncate">{lead.location}</span>
@@ -4299,6 +4500,243 @@ export default function LeadManager({
               </button>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ================= MODAL: QUICK ADD CUSTOMER ================= */}
+      {isAddCustomerModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                  <Building className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">Add New Customer</h3>
+                  <p className="text-[11px] text-slate-500">Register customer and auto-populate lead form</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const cName = newCustomerDraft.name.trim();
+                if (!cName) {
+                  toast.error('Customer / Company Name is required');
+                  return;
+                }
+                const contactP = newCustomerDraft.contactPerson.trim() || cName;
+                const ph = newCustomerDraft.phone.trim() || '+971 50 123 4567';
+                const em = newCustomerDraft.email.trim() || 'info@client.ae';
+                const loc = newCustomerDraft.location.trim() || 'Dubai, UAE';
+
+                try {
+                  const storedCust = JSON.parse(localStorage.getItem('alzaydan_crm_customers') || '[]');
+                  const newCustObj = {
+                    id: Date.now(),
+                    code: `AZ-CUST-${100 + storedCust.length + 1}`,
+                    date: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+                    name: cName,
+                    company: cName,
+                    type: 'Customer',
+                    owner: addLeadForm.leadOwner.replace(' (EMPLOYEE)', ''),
+                    ownerAvatarBg: 'bg-[#011635] text-white',
+                    phone: ph,
+                    email: em,
+                    location: loc,
+                    address: loc,
+                    website: '',
+                    primaryContact: contactP,
+                    contactPerson: contactP,
+                    contactPhone: ph,
+                    contactEmail: em,
+                    status: 'Active',
+                    lastEnquiry: new Date().toLocaleDateString('en-GB').replace(/\//g, '-'),
+                    openEnquiries: '1 Enquiry',
+                    lastOrder: 'N/A',
+                    outstanding: 'AED 0.00'
+                  };
+                  const updated = [newCustObj, ...storedCust.filter(c => (c.name || '').toLowerCase() !== cName.toLowerCase())];
+                  localStorage.setItem('alzaydan_crm_customers', JSON.stringify(updated));
+                  if (typeof setCustomers === 'function') {
+                    setCustomers(updated);
+                  }
+                  window.dispatchEvent(new Event('alzaydan_customer_updated'));
+                } catch {}
+
+                setAddLeadForm((prev) => ({
+                  ...prev,
+                  customerName: cName,
+                  contactName: contactP,
+                  email: em,
+                  businessMobile: ph.replace(/^\+971\s*/, ''),
+                  location: loc
+                }));
+
+                toast.success(`Customer "${cName}" registered & auto-filled!`);
+                setIsAddCustomerModalOpen(false);
+                setNewCustomerDraft({ name: '', contactPerson: '', phone: '', email: '', location: 'Dubai, UAE' });
+              }}
+              className="space-y-3.5 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Customer / Company Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Al Zaydan Contracting LLC"
+                  value={newCustomerDraft.name}
+                  onChange={(e) => setNewCustomerDraft({ ...newCustomerDraft, name: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Contact Person
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Sheminsha"
+                  value={newCustomerDraft.contactPerson}
+                  onChange={(e) => setNewCustomerDraft({ ...newCustomerDraft, contactPerson: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Phone</label>
+                  <input
+                    type="text"
+                    placeholder="+971 50 123 4567"
+                    value={newCustomerDraft.phone}
+                    onChange={(e) => setNewCustomerDraft({ ...newCustomerDraft, phone: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Email</label>
+                  <input
+                    type="email"
+                    placeholder="client@company.com"
+                    value={newCustomerDraft.email}
+                    onChange={(e) => setNewCustomerDraft({ ...newCustomerDraft, email: e.target.value })}
+                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Location</label>
+                <input
+                  type="text"
+                  placeholder="Dubai, UAE"
+                  value={newCustomerDraft.location}
+                  onChange={(e) => setNewCustomerDraft({ ...newCustomerDraft, location: e.target.value })}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustomerModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-[#16477A] text-white hover:bg-[#0d2d4f] shadow-xs cursor-pointer"
+                >
+                  Save & Apply
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ================= MODAL: QUICK ADD BUSINESS OPPORTUNITY ================= */}
+      {isAddBizOppModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+              <h3 className="font-extrabold text-sm text-slate-900">Add Business Opportunity</h3>
+              <button
+                type="button"
+                onClick={() => setIsAddBizOppModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                const trimmed = newBizOppDraft.trim();
+                if (!trimmed) {
+                  toast.error('Please enter Business Opportunity name');
+                  return;
+                }
+                if (!bizOpportunities.includes(trimmed)) {
+                  const updated = [...bizOpportunities, trimmed];
+                  setBizOpportunities(updated);
+                  try {
+                    localStorage.setItem('alzaydan_biz_opportunities', JSON.stringify(updated));
+                  } catch {}
+                }
+                setAddLeadForm((prev) => ({ ...prev, businessOpportunity: trimmed }));
+                toast.success(`Business Opportunity "${trimmed}" added & selected!`);
+                setNewBizOppDraft('');
+                setIsAddBizOppModalOpen(false);
+              }}
+              className="space-y-4 text-xs"
+            >
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Opportunity Type Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Cold Storage Retrofit Phase 2"
+                  value={newBizOppDraft}
+                  onChange={(e) => setNewBizOppDraft(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A]"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsAddBizOppModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-[#10B981] hover:bg-[#059669] text-white shadow-xs cursor-pointer"
+                >
+                  Add & Select
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>
