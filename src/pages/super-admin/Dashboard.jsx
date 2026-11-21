@@ -25,7 +25,7 @@ import CustomerManager from './customers/CustomerManager';
 import ReportManager from './reports/ReportManager';
 import UsersDirectoryView from './users/UsersDirectoryView';
 import SettingsView from './settings/SettingsView';
-import { getStoredUsers, isSalesExecutive, filterTasksByRole, canAccessSettings } from '../../utils/userDirectory';
+import { getStoredUsers, isSalesExecutive, filterTasksByRole, canAccessSettings, canAccessReports } from '../../utils/userDirectory';
 
 export default function SuperAdminDashboard({
   initialNav = 'Dashboard',
@@ -72,6 +72,7 @@ export default function SuperAdminDashboard({
 
   const isRep = isSalesExecutive(currentUser);
   const canSettings = canAccessSettings(currentUser);
+  const canReports = canAccessReports(currentUser);
 
   // Navigation & UI State
   const [activeNav, setActiveNav] = useState(() => {
@@ -81,10 +82,13 @@ export default function SuperAdminDashboard({
     if (!canAccessSettings(currentUser) && initialNav === 'Settings') {
       return 'Dashboard';
     }
+    if (!canAccessReports(currentUser) && initialNav === 'Reports') {
+      return 'Dashboard';
+    }
     return initialNav;
   });
 
-  // Guard against unauthorized access to /employees, /users, or /settings
+  // Guard against unauthorized access to /employees, /users, /reports, or /settings
   useEffect(() => {
     if (isRep && (activeNav === 'Employees' || activeNav === 'Users' || location.pathname === '/employees' || location.pathname === '/users')) {
       setActiveNav('Dashboard');
@@ -94,7 +98,11 @@ export default function SuperAdminDashboard({
       setActiveNav('Dashboard');
       navigate('/dashboard', { replace: true });
     }
-  }, [isRep, canSettings, activeNav, location.pathname, navigate]);
+    if (!canReports && (activeNav === 'Reports' || location.pathname === '/reports')) {
+      setActiveNav('Dashboard');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isRep, canSettings, canReports, activeNav, location.pathname, navigate]);
 
   useEffect(() => {
     const routeByNav = {
@@ -105,7 +113,7 @@ export default function SuperAdminDashboard({
       Employees: '/employees',
       Users: '/users',
       Sales: '/sales',
-      Reports: '/reports',
+      ...(canReports ? { Reports: '/reports' } : {}),
       ...(canSettings ? { Settings: '/settings' } : {})
     };
     const targetPath = routeByNav[activeNav];
@@ -513,8 +521,8 @@ export default function SuperAdminDashboard({
             </div>
           )}
 
-          {/* Active Navigation: Reports View (Matching Reference Reports UI) */}
-          {activeNav === 'Reports' && (
+          {/* Active Navigation: Reports View (Strictly restricted to Super Admin and Manager) */}
+          {activeNav === 'Reports' && canReports && (
             <ReportManager onBack={() => setActiveNav('Dashboard')} />
           )}{/* Active Navigation: Notifications View */}
           {activeNav === 'Notifications' && (

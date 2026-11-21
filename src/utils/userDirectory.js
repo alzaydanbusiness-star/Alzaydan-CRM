@@ -497,3 +497,13 @@ export function canAccessSettings(user) {
   const tier = getUserTier(u);
   return tier === 'super-admin' || tier === 'manager';
 }
+
+/**
+ * Check if the user has access to commercial reports (Only Super Admin and Manager)
+ */
+export function canAccessReports(user) {
+  const u = user || getLoggedInUser();
+  if (!u) return false;
+  const tier = getUserTier(u);
+  return tier === 'super-admin' || tier === 'manager';
+}
