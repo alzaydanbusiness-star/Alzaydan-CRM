@@ -1,5 +1,7 @@
-// Al Zaydan CRM - Firebase Configuration Service
-// Reads environment variables with safe fallbacks
+// Al Zaydan CRM - Firebase Configuration & Initialization Service
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
 
 export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyD9xn_jPe-4ARdmP3zNXAhU9rhmsWdRBEI",
@@ -10,5 +12,9 @@ export const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:709527101005:web:3b0adbdc62627cb8d18604",
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-25WJ19LHS1"
 };
+
+export const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app);
 
 export default firebaseConfig;

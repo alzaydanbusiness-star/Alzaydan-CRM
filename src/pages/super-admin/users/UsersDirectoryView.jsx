@@ -29,6 +29,7 @@ import {
   Receipt
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createFirebaseUser, syncFirestoreUsers } from '../../../services/firebaseAuth';
 import { getStoredUsers, canManageUsers, isSalesExecutive, deleteStoredUser } from '../../../utils/userDirectory';
 
 // Clean raw input to extract national 9-digit UAE mobile (5XXXXXXXX)
@@ -618,6 +619,26 @@ export default function UsersDirectoryView() {
   // Live Users Directory (Always preserves canonical real team users, synced with localStorage)
   const [users, setUsers] = useState(() => getStoredUsers());
 
+  // Pull cloud users from Firestore into local directory
+  useEffect(() => {
+    syncFirestoreUsers().then((cloudUsers) => {
+      if (cloudUsers && cloudUsers.length > 0) {
+        setUsers((prev) => {
+          const merged = [...prev];
+          cloudUsers.forEach((cu) => {
+            const exists = merged.some(
+              (m) => (m.email && m.email.toLowerCase() === (cu.email || '').toLowerCase()) || m.id === cu.id
+            );
+            if (!exists) {
+              merged.push(cu);
+            }
+          });
+          return merged;
+        });
+      }
+    }).catch(() => {});
+  }, []);
+
   // Automatically synchronize directory state to localStorage
   useEffect(() => {
     try {
@@ -970,6 +991,20 @@ export default function UsersDirectoryView() {
     };
 
     setUsers((prev) => [created, ...prev]);
+
+    // Automatically register and sync user with Firebase cloud authentication
+    createFirebaseUser({
+      email: created.email,
+      password: created.password,
+      userData: created
+    }).then((res) => {
+      if (res.success) {
+        toast.success(`User "${created.name}" synchronized with Firebase cloud authentication!`);
+      }
+    }).catch((err) => {
+      console.warn('Firebase user creation notice:', err);
+    });
+
     toast.success(`User "${created.name}" created successfully!`);
     setViewMode('list');
 

@@ -18,6 +18,7 @@ import {
 import { toast, Toaster } from 'sonner';
 import { AlZaydanCrest } from '../components/AlZaydanLogo';
 import { CANONICAL_SYSTEM_USERS, getStoredUsers } from '../utils/userDirectory';
+import { loginWithFirebase } from '../services/firebaseAuth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeCardTab, setActiveCardTab] = useState('Overview'); // 'Overview' | 'Sales Funnel' | 'Recent Deals'
 
-  const handleSignIn = (e) => {
+  const handleSignIn = async (e) => {
     if (e && e.preventDefault) e.preventDefault();
 
     const inputIdentifier = (email || '').trim().toLowerCase();
@@ -39,16 +40,50 @@ export default function LoginPage() {
       return;
     }
 
-    // 1. Get all stored and canonical system users
+    setIsLoading(true);
+
+    // 1. First, attempt Firebase Cloud Authentication
+    try {
+      const fbResult = await loginWithFirebase(inputIdentifier, cleanPassword);
+      if (fbResult.success && fbResult.user) {
+        localStorage.setItem('alzaydan_current_user', JSON.stringify(fbResult.user));
+
+        try {
+          const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
+          const exists = emps.some(emp => (emp.email || '').toLowerCase() === (fbResult.user.email || '').toLowerCase());
+          if (!exists) {
+            localStorage.setItem('alzaydan_custom_employees', JSON.stringify([fbResult.user, ...emps]));
+          }
+        } catch {}
+
+        setIsLoading(false);
+        toast.success(`Authentication successful! Welcome, ${fbResult.user.name} (${fbResult.user.role || 'Sales Operations'}).`);
+        navigate('/dashboard');
+        return;
+      }
+    } catch (fbErr) {
+      console.warn('Firebase login attempt notice:', fbErr);
+    }
+
+    // 2. Identify target user from stored/canonical users (Local / Offline Fallback)
     const allUsers = getStoredUsers();
 
-    // 2. Identify target user by email, username, or name
     let matchedUser = allUsers.find((u) => {
       const uEmail = (u.email || '').toLowerCase().trim();
       const uUsername = (u.username || '').toLowerCase().trim();
       const uName = (u.name || '').toLowerCase().trim();
       return uEmail === inputIdentifier || uUsername === inputIdentifier || uName === inputIdentifier;
     });
+
+    // Check newly registered user by email prefix (e.g. arafath@gmail.com -> arafath)
+    if (!matchedUser && inputIdentifier.includes('@')) {
+      const prefix = inputIdentifier.split('@')[0];
+      matchedUser = allUsers.find((u) => {
+        const uEmail = (u.email || '').toLowerCase().trim();
+        const uName = (u.name || '').toLowerCase().trim();
+        return uEmail.startsWith(prefix) || uName.includes(prefix);
+      });
+    }
 
     // Alias fallbacks for standard roles
     if (!matchedUser) {
@@ -84,6 +119,21 @@ export default function LoginPage() {
         inputIdentifier === 'shaheer'
       ) {
         matchedUser = allUsers.find(u => (u.name || '').toLowerCase() === 'shaheer' || (u.email || '').toLowerCase() === 'shaheer@gmail.com') || CANONICAL_SYSTEM_USERS[4];
+      } else if (
+        inputIdentifier === 'arafath@gmail.com' ||
+        inputIdentifier === 'arafath'
+      ) {
+        matchedUser = {
+          id: Date.now(),
+          name: 'Arafath',
+          email: 'arafath@gmail.com',
+          username: 'arafath',
+          password: 'arafath@123',
+          role: 'Sales Executive',
+          roleTier: 'staff',
+          crmProfile: 'Sales Executive',
+          status: 'Active'
+        };
       }
     }
 
@@ -108,24 +158,25 @@ export default function LoginPage() {
         'shibil@123',
         'shaheer@123',
         'shemin@123',
-        'riswan@123'
+        'riswan@123',
+        'arafath@123'
       ].filter(Boolean);
 
       const isPasswordValid = validPasswords.includes(cleanPassword);
 
       if (isPasswordValid) {
-        setIsLoading(true);
         localStorage.setItem('alzaydan_current_user', JSON.stringify(matchedUser));
 
         setTimeout(() => {
           setIsLoading(false);
           toast.success(`Authentication successful! Welcome, ${matchedUser.name} (${matchedUser.role || 'Sales Operations'}).`);
           navigate('/dashboard');
-        }, 500);
+        }, 300);
         return;
       }
     }
 
+    setIsLoading(false);
     toast.error('Invalid credentials. Check your company email and password.');
   };
 

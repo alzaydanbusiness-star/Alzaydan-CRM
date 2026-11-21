@@ -14,6 +14,7 @@ import {
   UserPlus
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { createFirebaseUser } from '../../../services/firebaseAuth';
 
 export default function AddEmployeeModal({ isOpen, onClose, onAddEmployee }) {
   const [name, setName] = useState('');
@@ -61,6 +62,13 @@ export default function AddEmployeeModal({ isOpen, onClose, onAddEmployee }) {
     } catch {
       // ignore
     }
+
+    // Automatically register user in Firebase Authentication & Firestore
+    createFirebaseUser({
+      email: generatedEmail,
+      password: finalPassword,
+      userData: newEmployee
+    }).catch((err) => console.warn('Firebase user creation notice:', err));
 
     onAddEmployee(newEmployee);
     toast.success(`Employee "${newEmployee.name}" (${newEmployee.position}) registered with login credentials!`);
