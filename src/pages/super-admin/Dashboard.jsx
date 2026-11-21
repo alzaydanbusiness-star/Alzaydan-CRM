@@ -25,7 +25,7 @@ import CustomerManager from './customers/CustomerManager';
 import ReportManager from './reports/ReportManager';
 import UsersDirectoryView from './users/UsersDirectoryView';
 import SettingsView from './settings/SettingsView';
-import { getStoredUsers, isSalesExecutive, filterTasksByRole } from '../../utils/userDirectory';
+import { getStoredUsers, isSalesExecutive, filterTasksByRole, canAccessSettings } from '../../utils/userDirectory';
 
 export default function SuperAdminDashboard({
   initialNav = 'Dashboard',
@@ -71,22 +71,30 @@ export default function SuperAdminDashboard({
   }, []);
 
   const isRep = isSalesExecutive(currentUser);
+  const canSettings = canAccessSettings(currentUser);
 
   // Navigation & UI State
   const [activeNav, setActiveNav] = useState(() => {
     if (isSalesExecutive(currentUser) && (initialNav === 'Employees' || initialNav === 'Users')) {
       return 'Dashboard';
     }
+    if (!canAccessSettings(currentUser) && initialNav === 'Settings') {
+      return 'Dashboard';
+    }
     return initialNav;
   });
 
-  // Guard against Sales Executives accessing /employees or /users
+  // Guard against unauthorized access to /employees, /users, or /settings
   useEffect(() => {
     if (isRep && (activeNav === 'Employees' || activeNav === 'Users' || location.pathname === '/employees' || location.pathname === '/users')) {
       setActiveNav('Dashboard');
       navigate('/dashboard', { replace: true });
     }
-  }, [isRep, activeNav, location.pathname, navigate]);
+    if (!canSettings && (activeNav === 'Settings' || location.pathname === '/settings')) {
+      setActiveNav('Dashboard');
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isRep, canSettings, activeNav, location.pathname, navigate]);
 
   useEffect(() => {
     const routeByNav = {
@@ -97,7 +105,8 @@ export default function SuperAdminDashboard({
       Employees: '/employees',
       Users: '/users',
       Sales: '/sales',
-      Reports: '/reports'
+      Reports: '/reports',
+      ...(canSettings ? { Settings: '/settings' } : {})
     };
     const targetPath = routeByNav[activeNav];
     if (targetPath && location.pathname !== targetPath) {
@@ -542,8 +551,8 @@ export default function SuperAdminDashboard({
             </div>
           )}
 
-          {/* Active Navigation: Settings View */}
-          {activeNav === 'Settings' && (
+          {/* Active Navigation: Settings View (Strictly restricted to Super Admin and Manager) */}
+          {activeNav === 'Settings' && canSettings && (
             <SettingsView />
           )}
 

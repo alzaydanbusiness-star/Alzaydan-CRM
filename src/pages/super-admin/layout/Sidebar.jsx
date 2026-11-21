@@ -18,7 +18,7 @@ import {
   BadgeDollarSign
 } from 'lucide-react';
 import { AlZaydanCrest } from '../../../components/AlZaydanLogo';
-import { isSalesExecutive } from '../../../utils/userDirectory';
+import { isSalesExecutive, canAccessSettings } from '../../../utils/userDirectory';
 
 export default function Sidebar({
   activeNav,
@@ -84,6 +84,7 @@ export default function Sidebar({
   }, [sidebarOpen]);
 
   const isRep = isSalesExecutive(currentUser);
+  const canSettings = canAccessSettings(currentUser);
 
   if (activeNav !== prevActiveNav) {
     setPrevActiveNav(activeNav);
@@ -136,11 +137,15 @@ export default function Sidebar({
       badge: 'Coming Soon'
     },
     { name: 'Report', tab: 'Reports', icon: FileText },
-    {
-      name: 'Settings',
-      tab: 'Settings',
-      icon: Wrench
-    }
+    ...(canSettings
+      ? [
+          {
+            name: 'Settings',
+            tab: 'Settings',
+            icon: Wrench
+          }
+        ]
+      : [])
   ];
 
   const handleItemClick = (item) => {

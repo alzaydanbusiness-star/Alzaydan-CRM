@@ -487,3 +487,13 @@ export function canManageUsers(user) {
   if (!u) return true;
   return !isSalesExecutive(u);
 }
+
+/**
+ * Check if the user has access to system settings (Only Super Admin and Manager)
+ */
+export function canAccessSettings(user) {
+  const u = user || getLoggedInUser();
+  if (!u) return false;
+  const tier = getUserTier(u);
+  return tier === 'super-admin' || tier === 'manager';
+}

@@ -45,6 +45,7 @@ export default function App() {
           <Route path="/employees" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
           <Route path="/reports" element={<ProtectedRoute><SuperAdminDashboard initialNav="Reports" /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SuperAdminDashboard initialNav="Settings" /></ProtectedRoute>} />
           
           {/* Unified Real CRM Dashboard for all roles */}
           <Route path="/manager" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
