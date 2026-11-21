@@ -44,6 +44,8 @@ export default function App() {
           <Route path="/contacts" element={<ProtectedRoute><SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Contact" /></ProtectedRoute>} />
           <Route path="/employees" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
           <Route path="/users" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute><SuperAdminDashboard initialNav="Inventory" /></ProtectedRoute>} />
+          <Route path="/purchase" element={<Navigate to="/inventory" replace />} />
           <Route path="/reports" element={<ProtectedRoute><SuperAdminDashboard initialNav="Reports" /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SuperAdminDashboard initialNav="Settings" /></ProtectedRoute>} />
           

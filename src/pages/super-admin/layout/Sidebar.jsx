@@ -7,6 +7,7 @@ import {
   Hourglass,
   Users,
   Package,
+  Boxes,
   FileText,
   Wrench,
   ChevronDown,
@@ -132,10 +133,9 @@ export default function Sidebar({
     },
     ...(!isRep ? [{ name: 'User', tab: 'Employees', icon: Users }] : []),
     {
-      name: 'Purchase',
-      tab: 'Purchase',
-      icon: Package,
-      badge: 'Coming Soon'
+      name: 'Inventory',
+      tab: 'Inventory',
+      icon: Boxes
     },
     ...(canReports
       ? [

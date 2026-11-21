@@ -25,6 +25,7 @@ import CustomerManager from './customers/CustomerManager';
 import ReportManager from './reports/ReportManager';
 import UsersDirectoryView from './users/UsersDirectoryView';
 import SettingsView from './settings/SettingsView';
+import InventoryView from './inventory/InventoryView';
 import { getStoredUsers, isSalesExecutive, filterTasksByRole, canAccessSettings, canAccessReports } from '../../utils/userDirectory';
 
 export default function SuperAdminDashboard({
@@ -113,6 +114,8 @@ export default function SuperAdminDashboard({
       Employees: '/employees',
       Users: '/users',
       Sales: '/sales',
+      Inventory: '/inventory',
+      Purchase: '/inventory',
       ...(canReports ? { Reports: '/reports' } : {}),
       ...(canSettings ? { Settings: '/settings' } : {})
     };
@@ -564,87 +567,9 @@ export default function SuperAdminDashboard({
             <SettingsView />
           )}
 
-          {/* Active Navigation: Purchase View (Coming Soon) */}
-          {activeNav === 'Purchase' && (
-            <div className="bg-white rounded-2xl p-8 sm:p-12 border border-slate-100 shadow-2xs text-center relative overflow-hidden">
-              <div className="absolute -top-24 -right-24 w-72 h-72 bg-blue-50/50 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-72 h-72 bg-amber-50/50 rounded-full blur-3xl pointer-events-none" />
-
-              <div className="max-w-xl mx-auto space-y-6 relative z-10">
-                {/* Coming Soon Pill Badge */}
-                <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold shadow-2xs">
-                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                  <span>Module Under Development • Coming Soon</span>
-                </div>
-
-                {/* Main Icon & Title */}
-                <div className="space-y-3">
-                  <div className="w-16 h-16 rounded-2xl bg-blue-50 text-[#0055D4] flex items-center justify-center mx-auto shadow-inner border border-blue-100">
-                    <Package className="w-8 h-8" />
-                  </div>
-                  <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                    Purchase & Procurement
-                  </h2>
-                  <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-                    This module is currently being finalized. Purchase Orders, Vendor Quotation comparisons, and supplier material intake will be accessible here soon.
-                  </p>
-                </div>
-
-                {/* Planned Modules Preview */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left pt-2">
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                      Purchase Orders (PO)
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      Multi-tier approval workflows & automated supplier PO generation.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                      Vendor Quotations
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      Comparative RFQ analysis and supplier price benchmarks.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Material Cost Tracking
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      Live sync with Tax Invoices and job cost accounting.
-                    </p>
-                  </div>
-
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 space-y-1">
-                    <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-purple-500" />
-                      Supplier Registry
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      UAE TRN verified supplier directory and payment terms.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Action / Notification Note */}
-                <div className="pt-2">
-                  <button
-                    onClick={() => toast.success('You will be notified once the Purchase module is live!')}
-                    className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#011635] text-white text-xs font-bold hover:bg-[#022454] transition shadow-md cursor-pointer"
-                  >
-                    <Bell className="w-3.5 h-3.5 text-amber-400" />
-                    Notify Me When Available
-                  </button>
-                </div>
-              </div>
-            </div>
+          {/* Active Navigation: Inventory Management View (Replaces old Purchase placeholder) */}
+          {(activeNav === 'Inventory' || activeNav === 'Purchase') && (
+            <InventoryView />
           )}
         </main>
       </div>
