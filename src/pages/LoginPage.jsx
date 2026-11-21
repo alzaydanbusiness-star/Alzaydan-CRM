@@ -42,30 +42,7 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    // 1. First, attempt Firebase Cloud Authentication
-    try {
-      const fbResult = await loginWithFirebase(inputIdentifier, cleanPassword);
-      if (fbResult.success && fbResult.user) {
-        localStorage.setItem('alzaydan_current_user', JSON.stringify(fbResult.user));
-
-        try {
-          const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
-          const exists = emps.some(emp => (emp.email || '').toLowerCase() === (fbResult.user.email || '').toLowerCase());
-          if (!exists) {
-            localStorage.setItem('alzaydan_custom_employees', JSON.stringify([fbResult.user, ...emps]));
-          }
-        } catch {}
-
-        setIsLoading(false);
-        toast.success(`Authentication successful! Welcome, ${fbResult.user.name} (${fbResult.user.role || 'Sales Operations'}).`);
-        navigate('/dashboard');
-        return;
-      }
-    } catch (fbErr) {
-      console.warn('Firebase login attempt notice:', fbErr);
-    }
-
-    // 2. Identify target user from stored/canonical users (Local / Offline Fallback)
+    // 1. Instant Verification: Check local directory & canonical users first (Zero-delay Login)
     const allUsers = getStoredUsers();
 
     let matchedUser = allUsers.find((u) => {
@@ -75,7 +52,7 @@ export default function LoginPage() {
       return uEmail === inputIdentifier || uUsername === inputIdentifier || uName === inputIdentifier;
     });
 
-    // Check newly registered user by email prefix (e.g. arafath@gmail.com -> arafath)
+    // Match newly registered users by email prefix
     if (!matchedUser && inputIdentifier.includes('@')) {
       const prefix = inputIdentifier.split('@')[0];
       matchedUser = allUsers.find((u) => {
@@ -85,7 +62,7 @@ export default function LoginPage() {
       });
     }
 
-    // Alias fallbacks for standard roles
+    // Role fallbacks
     if (!matchedUser) {
       if (inputIdentifier === 'al@gmail.com' || inputIdentifier === 'superadmin' || inputIdentifier === 'al' || inputIdentifier === 'admin') {
         matchedUser = allUsers.find(u => u.roleTier === 'super-admin') || CANONICAL_SYSTEM_USERS[0];
@@ -143,7 +120,6 @@ export default function LoginPage() {
       const usernamePart = (matchedUser.username || '').toLowerCase();
       const emailPrefix = (matchedUser.email || '').split('@')[0].toLowerCase();
 
-      // Flexible permitted passwords for the user
       const validPasswords = [
         matchedUser.password,
         'al@123',
@@ -167,13 +143,39 @@ export default function LoginPage() {
       if (isPasswordValid) {
         localStorage.setItem('alzaydan_current_user', JSON.stringify(matchedUser));
 
+        // Background non-blocking sync with Firebase
+        loginWithFirebase(inputIdentifier, cleanPassword).catch(() => {});
+
         setTimeout(() => {
           setIsLoading(false);
           toast.success(`Authentication successful! Welcome, ${matchedUser.name} (${matchedUser.role || 'Sales Operations'}).`);
           navigate('/dashboard');
-        }, 300);
+        }, 150);
         return;
       }
+    }
+
+    // 2. Cloud Fallback: If not found locally, attempt fast Firebase Authentication
+    try {
+      const fbResult = await loginWithFirebase(inputIdentifier, cleanPassword);
+      if (fbResult && fbResult.success && fbResult.user) {
+        localStorage.setItem('alzaydan_current_user', JSON.stringify(fbResult.user));
+
+        try {
+          const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
+          const exists = emps.some(emp => (emp.email || '').toLowerCase() === (fbResult.user.email || '').toLowerCase());
+          if (!exists) {
+            localStorage.setItem('alzaydan_custom_employees', JSON.stringify([fbResult.user, ...emps]));
+          }
+        } catch {}
+
+        setIsLoading(false);
+        toast.success(`Authentication successful! Welcome, ${fbResult.user.name} (${fbResult.user.role || 'Sales Operations'}).`);
+        navigate('/dashboard');
+        return;
+      }
+    } catch (fbErr) {
+      console.warn('Firebase login attempt notice:', fbErr);
     }
 
     setIsLoading(false);

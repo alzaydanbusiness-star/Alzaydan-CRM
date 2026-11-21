@@ -85,10 +85,17 @@ export async function createFirebaseUser({ email, password, userData }) {
   }
 }
 
+// Utility to guard cloud network requests from freezing the UI
+const withTimeout = (promise, ms = 1200) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Firebase network timeout')), ms))
+  ]);
+};
+
 /**
  * Authenticate user with Firebase Authentication.
- * If user entered a username instead of an email, automatically resolves the email first.
- * Falls back seamlessly to local database if Firebase is unreachable or user is local.
+ * Guarded by a strict 1.2-second timeout so the UI is NEVER frozen or stuck loading.
  */
 export async function loginWithFirebase(emailOrUsername, password) {
   const input = (emailOrUsername || '').trim();
@@ -98,40 +105,23 @@ export async function loginWithFirebase(emailOrUsername, password) {
     return { success: false, error: 'Please enter both email/username and password' };
   }
 
-  // Determine if input is email or username
-  let targetEmail = input.toLowerCase();
-  if (!targetEmail.includes('@')) {
-    // Look up email by username from Firestore or local directory
-    try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('username', '==', input.toLowerCase()));
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        targetEmail = snap.docs[0].data().email || targetEmail;
-      }
-    } catch {
-      // Fallback to local
-    }
-  }
+  const targetEmail = input.toLowerCase();
 
-  // 1. Try Firebase Authentication
   try {
-    const cred = await signInWithEmailAndPassword(auth, targetEmail, cleanPassword);
+    // Attempt Firebase Authentication with strict timeout
+    const cred = await withTimeout(signInWithEmailAndPassword(auth, targetEmail, cleanPassword), 1200);
     const firebaseUser = cred.user;
 
-    // Fetch full user record from Firestore
+    // Fast attempt to fetch Firestore document without blocking
     let firestoreData = null;
     try {
       const docRef = doc(db, 'users', firebaseUser.uid);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
+      const snap = await withTimeout(getDoc(docRef), 1000);
+      if (snap && snap.exists && snap.exists()) {
         firestoreData = snap.data();
       }
-    } catch (e) {
-      console.warn('Failed to fetch Firestore doc on login:', e);
-    }
+    } catch {}
 
-    // Merge with canonical/local if available
     const canonical = CANONICAL_SYSTEM_USERS.find(
       (u) => (u.email && u.email.toLowerCase() === targetEmail)
     );
@@ -153,38 +143,22 @@ export async function loginWithFirebase(emailOrUsername, password) {
 
     return { success: true, user: mergedUser, source: 'firebase' };
   } catch (authError) {
-    // If Firebase Auth fails (e.g. invalid credential, user-not-found, or network error),
-    // check Firestore 'users' collection or local database as secondary fallback
-    try {
-      const usersRef = collection(db, 'users');
-      const q = query(usersRef, where('email', '==', targetEmail));
-      const snap = await getDocs(q);
-
-      if (!snap.empty) {
-        const docUser = snap.docs[0].data();
-        if (docUser && docUser.password === cleanPassword) {
-          return { success: true, user: docUser, source: 'firestore' };
-        }
-      }
-    } catch {}
-
-    // Return detailed error code for debugging
     return { success: false, error: authError.message, code: authError.code };
   }
 }
 
 /**
  * Fetch all users from Firestore to synchronize with local storage.
+ * Guarded by timeout to avoid blocking page startup.
  */
 export async function syncFirestoreUsers() {
   try {
-    const snap = await getDocs(collection(db, 'users'));
-    if (!snap.empty) {
-      const firestoreUsers = snap.docs.map((d) => d.data());
-      return firestoreUsers;
+    const snap = await withTimeout(getDocs(collection(db, 'users')), 1500);
+    if (snap && !snap.empty) {
+      return snap.docs.map((d) => d.data());
     }
   } catch (err) {
-    console.warn('Could not sync users from Firestore:', err.message);
+    // Silent fallback to local storage
   }
   return [];
 }
