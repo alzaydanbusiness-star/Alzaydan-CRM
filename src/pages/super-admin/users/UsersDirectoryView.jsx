@@ -1730,21 +1730,32 @@ export default function UsersDirectoryView() {
       {viewMode === 'create' && (
         <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
           {/* Header */}
-          <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-100">
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs">
             <div className="flex items-center gap-2.5">
               <User className="w-5 h-5 text-slate-700" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
                 Add User
               </h2>
             </div>
-            <button
-              type="button"
-              onClick={() => setViewMode('list')}
-              className="w-7 h-7 rounded bg-[#ef4444] hover:bg-red-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              title="Close form"
-            >
-              <X className="w-4 h-4 stroke-[2.5]" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                title="Back to Users Directory"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 flex items-center justify-center transition-colors cursor-pointer border border-red-200/60 shadow-2xs"
+                title="Close form"
+              >
+                <X className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
 
           {/* Form */}
@@ -2295,14 +2306,8 @@ export default function UsersDirectoryView() {
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-4 flex items-center gap-3">
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-[#063056] hover:bg-[#021f3f] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
-              >
-                Submit
-              </button>
+            {/* Action Buttons (Aligned to Right) */}
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
@@ -2310,6 +2315,12 @@ export default function UsersDirectoryView() {
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-[#063056] hover:bg-[#021f3f] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
+              >
+                Submit
               </button>
             </div>
           </form>
@@ -2321,8 +2332,8 @@ export default function UsersDirectoryView() {
       {/* ============================================================== */}
       {viewMode === 'edit' && (
         <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
-          {/* Header */}
-          <div className="p-4 sm:p-5 flex items-center justify-between border-b border-slate-100">
+          {/* Header (Sticky with Closing Arrow on Top Right) */}
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs">
             <div className="flex items-center gap-2.5">
               <Edit2 className="w-5 h-5 text-slate-700" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
@@ -2334,14 +2345,25 @@ export default function UsersDirectoryView() {
                 </span>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => (selectedUserDetail ? setViewMode('detail') : setViewMode('list'))}
-              className="w-7 h-7 rounded bg-[#ef4444] hover:bg-red-600 text-white flex items-center justify-center transition-colors cursor-pointer shadow-2xs"
-              title="Close edit"
-            >
-              <X className="w-4 h-4 stroke-[2.5]" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => (selectedUserDetail ? setViewMode('detail') : setViewMode('list'))}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                title="Back to Users Directory"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => (selectedUserDetail ? setViewMode('detail') : setViewMode('list'))}
+                className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 flex items-center justify-center transition-colors cursor-pointer border border-red-200/60 shadow-2xs"
+                title="Close edit"
+              >
+                <X className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
 
           {/* Form */}
@@ -2866,14 +2888,8 @@ export default function UsersDirectoryView() {
               )}
             </div>
 
-            {/* Action Buttons */}
-            <div className="pt-4 flex items-center gap-3">
-              <button
-                type="submit"
-                className="px-6 py-2.5 bg-[#063056] hover:bg-[#021f3f] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
-              >
-                Update User
-              </button>
+            {/* Action Buttons (Aligned to Right) */}
+            <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => (selectedUserDetail ? setViewMode('detail') : setViewMode('list'))}
@@ -2881,6 +2897,12 @@ export default function UsersDirectoryView() {
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Back</span>
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 bg-[#063056] hover:bg-[#021f3f] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
+              >
+                Update User
               </button>
             </div>
           </form>
@@ -2931,6 +2953,15 @@ export default function UsersDirectoryView() {
                   User Details
                 </h2>
               </div>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+                title="Back to Users Directory"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
             </div>
 
             {/* Sub-tab 1: User Details (Matching Reference Image 2 2-column layout) */}
