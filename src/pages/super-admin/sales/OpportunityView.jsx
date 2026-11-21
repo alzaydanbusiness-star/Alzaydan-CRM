@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+ import React, { useState, useMemo, useEffect } from 'react';
 import {
   Star,
   Search,
@@ -2059,7 +2059,7 @@ export default function OpportunityView({
               ) : (
                 <div className="space-y-3">
                   <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[750px] text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
                           <th className="py-2.5 px-3 w-10 text-center">#</th>
@@ -2622,7 +2622,7 @@ export default function OpportunityView({
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[700px] text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
                           <th className="py-2.5 px-3">Item Name</th>
@@ -3394,7 +3394,7 @@ export default function OpportunityView({
 
               {/* Table: Exact Columns matching Image 1 */}
               <div className="overflow-x-auto min-h-[420px] pb-24">
-                <table className="w-full text-left text-xs">
+                <table className="w-full min-w-[1100px] text-left text-xs">
                   <thead>
                     <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
                       <th className="py-3 px-3 w-8">
@@ -3693,7 +3693,7 @@ export default function OpportunityView({
       {
         isAddModalOpen && (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="flex items-center gap-2">
                   <Star className="w-5 h-5 text-amber-500 fill-amber-500" />
@@ -3862,7 +3862,7 @@ export default function OpportunityView({
       {
         isAssignModalOpen && (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5 max-h-[90vh] overflow-y-auto">
               {/* Header: Assign Opportunity | [X] */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="font-bold text-base text-slate-900">
@@ -3960,7 +3960,7 @@ export default function OpportunityView({
       {
         isUploadModalOpen && (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="flex items-center gap-2">
                   <UploadCloud className="w-5 h-5 text-blue-600" />
@@ -4015,7 +4015,7 @@ export default function OpportunityView({
       {
         quickAddModal.isOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-xs p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
                 <div className="flex items-center gap-2">
                   <Plus className="w-4 h-4 text-blue-600" />

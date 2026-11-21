@@ -95,7 +95,7 @@ export default function Header({
           </button>
 
           {notifDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in duration-150">
+            <div className="absolute right-0 mt-2 w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 animate-in fade-in duration-150">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-slate-800 text-sm">Notifications</span>
@@ -164,7 +164,7 @@ export default function Header({
           </button>
 
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
+            <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50">
               <div className="px-3 py-2 border-b border-slate-100">
                 <div className="text-xs font-bold text-slate-900">{repName}</div>
                 <div className="text-[11px] text-slate-500">{repEmail}</div>

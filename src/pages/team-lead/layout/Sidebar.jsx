@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Home,
   CheckSquare,
@@ -34,6 +34,18 @@ export default function Sidebar({
 }) {
   const [userToggledNav, setUserToggledNav] = useState(null);
   const [prevActiveNav, setPrevActiveNav] = useState(activeNav);
+
+  // Prevent background scrolling on mobile when sidebar drawer is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
 
   if (activeNav !== prevActiveNav) {
     setPrevActiveNav(activeNav);

@@ -2,55 +2,67 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import SuperAdminDashboard from './pages/super-admin/Dashboard';
 import LoginPage from './pages/LoginPage';
-import ManagerDashboard from './pages/manager/Dashboard';
-import TeamLeadDashboard from './pages/team-lead/Dashboard';
-import SalesRepDashboard from './pages/sales-rep/Dashboard';
+
+function ProtectedRoute({ children }) {
+  const user = localStorage.getItem('alzaydan_current_user');
+  if (!user) {
+    return <Navigate to="/login" replace />;
+  }
+  return children;
+}
+
+function RootRedirect() {
+  const user = localStorage.getItem('alzaydan_current_user');
+  return <Navigate to={user ? "/dashboard" : "/login"} replace />;
+}
 
 export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <Routes>
-        {/* Super Admin Dashboard routes */}
-        <Route path="/" element={<SuperAdminDashboard />} />
-        <Route path="/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/admin" element={<SuperAdminDashboard />} />
-        <Route path="/tasks" element={<SuperAdminDashboard initialNav="Tasks" />} />
-        <Route path="/sales" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Opportunity" />} />
-        <Route path="/sales/opportunity" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Opportunity" />} />
-        <Route path="/sales/quotations" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" />} />
-        <Route path="/sales/quotation" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" />} />
-        <Route path="/sales/commercial-offers" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" />} />
-        <Route path="/sales/orders" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Sales Order" />} />
-        <Route path="/sales/invoice" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Tax Invoice" />} />
-        <Route path="/sales/invoices" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Tax Invoice" />} />
-        <Route path="/sales/receipts" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Receipt" />} />
-        <Route path="/sales/delivery-notes" element={<SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Receipt" />} />
-        <Route path="/leads" element={<SuperAdminDashboard initialNav="Leads" />} />
-        <Route path="/customers" element={<SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Customer" />} />
-        <Route path="/customers/contacts" element={<SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Contact" />} />
-        <Route path="/contacts" element={<SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Contact" />} />
-        <Route path="/employees" element={<SuperAdminDashboard initialNav="Employees" />} />
-        <Route path="/users" element={<SuperAdminDashboard initialNav="Employees" />} />
-        <Route path="/reports" element={<SuperAdminDashboard initialNav="Reports" />} />
-        
-        {/* Unified Real CRM Dashboard for all roles */}
-        <Route path="/manager" element={<SuperAdminDashboard />} />
-        <Route path="/manager/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/lead" element={<SuperAdminDashboard />} />
-        <Route path="/lead/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/rep" element={<SuperAdminDashboard />} />
-        <Route path="/rep/dashboard" element={<SuperAdminDashboard />} />
-        <Route path="/executive" element={<SuperAdminDashboard />} />
-        <Route path="/executive/dashboard" element={<SuperAdminDashboard />} />
+          {/* Default root path: checks auth and redirects to /login or /dashboard */}
+          <Route path="/" element={<RootRedirect />} />
 
-        {/* Dedicated Login route */}
-        <Route path="/login" element={<LoginPage />} />
+          {/* Super Admin Dashboard protected routes */}
+          <Route path="/dashboard" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/tasks" element={<ProtectedRoute><SuperAdminDashboard initialNav="Tasks" /></ProtectedRoute>} />
+          <Route path="/sales" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Opportunity" /></ProtectedRoute>} />
+          <Route path="/sales/opportunity" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Opportunity" /></ProtectedRoute>} />
+          <Route path="/sales/quotations" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" /></ProtectedRoute>} />
+          <Route path="/sales/quotation" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" /></ProtectedRoute>} />
+          <Route path="/sales/commercial-offers" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Quotation" /></ProtectedRoute>} />
+          <Route path="/sales/orders" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Sales Order" /></ProtectedRoute>} />
+          <Route path="/sales/invoice" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Tax Invoice" /></ProtectedRoute>} />
+          <Route path="/sales/invoices" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Tax Invoice" /></ProtectedRoute>} />
+          <Route path="/sales/receipts" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Receipt" /></ProtectedRoute>} />
+          <Route path="/sales/delivery-notes" element={<ProtectedRoute><SuperAdminDashboard initialNav="Sales" initialSalesSubTab="Receipt" /></ProtectedRoute>} />
+          <Route path="/leads" element={<ProtectedRoute><SuperAdminDashboard initialNav="Leads" /></ProtectedRoute>} />
+          <Route path="/customers" element={<ProtectedRoute><SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Customer" /></ProtectedRoute>} />
+          <Route path="/customers/contacts" element={<ProtectedRoute><SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Contact" /></ProtectedRoute>} />
+          <Route path="/contacts" element={<ProtectedRoute><SuperAdminDashboard initialNav="Customers" initialCustomerSubTab="Contact" /></ProtectedRoute>} />
+          <Route path="/employees" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
+          <Route path="/users" element={<ProtectedRoute><SuperAdminDashboard initialNav="Employees" /></ProtectedRoute>} />
+          <Route path="/reports" element={<ProtectedRoute><SuperAdminDashboard initialNav="Reports" /></ProtectedRoute>} />
+          
+          {/* Unified Real CRM Dashboard for all roles */}
+          <Route path="/manager" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/manager/dashboard" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/lead" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/lead/dashboard" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/rep" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/rep/dashboard" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/executive" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
+          <Route path="/executive/dashboard" element={<ProtectedRoute><SuperAdminDashboard /></ProtectedRoute>} />
 
-        {/* Fallback to dashboard */}
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </BrowserRouter>
-  </ErrorBoundary>
+          {/* Dedicated Login route */}
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Fallback route */}
+          <Route path="*" element={<RootRedirect />} />
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

@@ -124,7 +124,7 @@ export default function TopPerformers({ teams }) {
 
       {/* Complete Rankings Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[600px] text-left text-xs">
           <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
             <tr>
               <th className="py-3 px-4 w-12 text-center">Rank</th>

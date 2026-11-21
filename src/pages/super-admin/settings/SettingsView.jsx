@@ -514,8 +514,8 @@ export default function SettingsView() {
           </div>
 
           {/* Interactive Permission Grid */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden">
-            <table className="w-full text-left text-xs">
+          <div className="border border-slate-200 rounded-xl overflow-x-auto">
+            <table className="w-full min-w-[600px] text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase text-[10px]">
                 <tr>
                   <th className="py-2.5 px-3.5">Module / Feature</th>

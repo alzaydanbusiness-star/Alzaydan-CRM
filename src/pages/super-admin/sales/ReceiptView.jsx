@@ -728,7 +728,7 @@ export default function ReceiptView({
               ) : (
                 <>
                   <div className="overflow-x-auto bg-white border border-slate-200/80 rounded-xl">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[700px] text-left text-xs">
                       <thead>
                         <tr className="border-b border-slate-200/80 bg-slate-50 text-[11px] font-bold text-slate-600 uppercase">
                           <th className="py-2.5 px-3">Item Name</th>
@@ -1029,7 +1029,7 @@ export default function ReceiptView({
 
             {/* Table View with dropdown padding */}
             <div className="overflow-x-auto min-h-[380px] pb-16">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[1100px] text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                     <th className="py-3 px-4 text-center w-14">Sl No.</th>
@@ -1225,7 +1225,7 @@ export default function ReceiptView({
       {/* ================= MODAL: VIEW RECEIPT DETAIL ================= */}
       {selectedReceiptDetail && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <CreditCard className="w-5 h-5 text-emerald-600" />
@@ -1283,8 +1283,8 @@ export default function ReceiptView({
               {/* Scope & Products Details */}
               <div className="p-3 bg-slate-50 rounded-xl space-y-2 border border-slate-200/80">
                 <span className="font-bold text-slate-700 block">Products / Line Items:</span>
-                <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-[11px]">
+                <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+                  <table className="w-full min-w-[500px] text-left text-[11px]">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
                       <tr>
                         <th className="py-1.5 px-2.5">Item</th>

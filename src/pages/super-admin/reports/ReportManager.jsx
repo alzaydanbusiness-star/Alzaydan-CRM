@@ -700,7 +700,7 @@ export default function ReportManager({ onBack }) {
       {/* ============================================================== */}
       {/* 1. TOP TITLE HEADER BAR (Matching Reference Image Exactly)      */}
       {/* ============================================================== */}
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         {/* Left: Back button + Blue Report Icon + Title + Live Indicator */}
         <div className="flex items-center gap-3">
           <button
@@ -888,7 +888,7 @@ export default function ReportManager({ onBack }) {
 
                 {/* Table with bright corporate blue header (#0090C8) */}
                 <div className="border border-slate-200 rounded overflow-x-auto shadow-2xs">
-                  <table className="w-full text-left text-xs whitespace-nowrap">
+                  <table className="w-full min-w-[700px] text-left text-xs whitespace-nowrap">
                     <thead className="bg-[#0090C8] text-white font-semibold text-[11px] sm:text-xs">
                       <tr>
                         {activeRunningReport.payload.columns.map((col, idx) => (
@@ -1157,7 +1157,7 @@ export default function ReportManager({ onBack }) {
       {/* ============================================================== */}
       {activeEditingReport && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="p-4 bg-[#011635] text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Edit2 className="w-4 h-4 text-sky-400" />
@@ -1256,7 +1256,7 @@ export default function ReportManager({ onBack }) {
       {/* ============================================================== */}
       {activeCustomizingReport && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="p-4 bg-gradient-to-r from-amber-600 to-amber-700 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sliders className="w-4 h-4" />

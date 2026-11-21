@@ -1419,7 +1419,7 @@ export default function TaxInvoiceView({
                 </div>
               ) : (
                 <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white shadow-2xs">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full min-w-[750px] text-left text-xs">
                     <thead>
                       <tr className="bg-slate-100/70 text-slate-700 font-bold text-[11px] border-b border-slate-200">
                         <th className="py-2.5 px-3">Item Name</th>
@@ -1883,7 +1883,7 @@ export default function TaxInvoiceView({
 
             {/* Table (Columns: Sl No., Date ▾, Owner, Invoice No., Opportunity/Order, Customer, Next Followup, Amount, Paid, Balance, Status, Action) */}
             <div className="overflow-x-auto min-h-[360px] pb-16">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[1100px] text-left text-xs">
                 <thead>
                   <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
                     <th className="py-3 px-3">Sl No.</th>
@@ -2156,7 +2156,7 @@ export default function TaxInvoiceView({
                     </span>
                   </div>
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[650px] text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
                           <th className="py-2 px-3">Item Name</th>

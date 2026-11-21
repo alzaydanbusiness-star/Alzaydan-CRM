@@ -122,7 +122,7 @@ export default function DealApprovals({
 
       {/* Approvals Table / List */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full min-w-[650px] text-left text-xs">
           <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
             <tr>
               <th className="py-3 px-4">Deal & Client</th>
@@ -277,7 +277,7 @@ export default function DealApprovals({
       {/* Reject Reason Modal Dialog */}
       {rejectingDeal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full border border-slate-200 overflow-hidden max-h-[90vh] overflow-y-auto">
             <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-2">
                 <XCircle className="w-5 h-5 text-rose-600" />

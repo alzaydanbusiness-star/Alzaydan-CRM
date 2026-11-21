@@ -161,7 +161,7 @@ export default function Header({
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
                 <span className="font-bold text-slate-800">Notifications</span>
                 {unreadCount > 0 && (
@@ -222,7 +222,7 @@ export default function Header({
           </button>
 
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs">
               <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-3">
                 {currentUser?.image || currentUser?.avatar ? (
                   <img

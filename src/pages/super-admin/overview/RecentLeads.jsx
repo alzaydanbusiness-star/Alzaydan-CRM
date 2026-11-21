@@ -32,7 +32,7 @@ export default function RecentLeads({ leads = [], onViewAll }) {
             <p className="text-[11px] text-slate-400">New leads created in the Lead module will appear here.</p>
           </div>
         ) : (
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[550px] text-left text-xs">
             <thead>
               <tr className="text-slate-400 text-[11px] font-semibold border-b border-slate-100">
                 <th className="pb-3 font-semibold">Lead Name</th>

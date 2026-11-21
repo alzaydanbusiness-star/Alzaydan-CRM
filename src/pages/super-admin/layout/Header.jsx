@@ -7,25 +7,22 @@ import {
   ChevronDown,
   Calendar,
   Shield,
-  LogOut
+  LogOut,
+  Camera
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { CANONICAL_SYSTEM_USERS } from '../../../utils/userDirectory';
 
 function getActiveUserProfile() {
+  const canonicalSuperAdmin = CANONICAL_SYSTEM_USERS[0];
   try {
     const stored = localStorage.getItem('alzaydan_current_user');
+    const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
+    
     if (!stored) {
-      return {
-        name: 'Super Admin',
-        email: 'al@gmail.com',
-        role: 'Super Admin',
-        roleTier: 'super-admin',
-        designation: 'Chief Executive Officer (CEO)',
-        department: 'Executive Management'
-      };
+      return canonicalSuperAdmin;
     }
     const user = JSON.parse(stored);
-    const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
     
     // Look up strictly by user's email, id or name
     const targetEmail = (user?.email || '').toLowerCase().trim();
@@ -34,27 +31,30 @@ function getActiveUserProfile() {
         (targetEmail && e.email && e.email.toLowerCase().trim() === targetEmail) ||
         (user?.id && e.id === user.id) ||
         (user?.name && e.name && e.name.toLowerCase().trim() === user.name.toLowerCase().trim())
+    ) || CANONICAL_SYSTEM_USERS.find(
+      (c) =>
+        (targetEmail && c.email && c.email.toLowerCase().trim() === targetEmail) ||
+        (user?.id && c.id === user.id)
     );
 
-    if (matched) {
-      return {
-        ...matched,
-        ...user,
-        name: user.name || matched.name,
-        email: user.email || matched.email,
-        role: user.role || matched.role || matched.designation || 'Sales Executive',
-        roleTier: user.roleTier || matched.roleTier || 'staff',
-        designation: user.designation || matched.designation || user.role || 'Sales Executive',
-        department: user.department || matched.department || 'Commercial Operations',
-        image: user.image || matched.image || user.avatar || matched.avatar || null,
-        avatar: user.avatar || matched.avatar || user.image || matched.image || null,
-        isImage: Boolean(user.image || matched.image || user.avatar || matched.avatar)
-      };
-    }
+    const effectiveImage = user.image || user.avatar || matched?.image || matched?.avatar || canonicalSuperAdmin.image;
 
-    return user;
+    return {
+      ...canonicalSuperAdmin,
+      ...matched,
+      ...user,
+      name: user.name || matched?.name || canonicalSuperAdmin.name,
+      email: user.email || matched?.email || canonicalSuperAdmin.email,
+      role: user.role || matched?.role || user.designation || canonicalSuperAdmin.role,
+      roleTier: user.roleTier || matched?.roleTier || canonicalSuperAdmin.roleTier,
+      designation: user.designation || matched?.designation || user.role || canonicalSuperAdmin.designation,
+      department: user.department || matched?.department || canonicalSuperAdmin.department,
+      image: effectiveImage,
+      avatar: effectiveImage,
+      isImage: Boolean(effectiveImage)
+    };
   } catch {
-    return { name: 'Super Admin', email: 'al@gmail.com', role: 'Super Admin' };
+    return canonicalSuperAdmin;
   }
 }
 
@@ -70,6 +70,49 @@ export default function Header({
 
   const profileRef = useRef(null);
   const notifRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const handleProfilePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select a valid image file');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result;
+      if (dataUrl) {
+        const updated = {
+          ...currentUser,
+          image: dataUrl,
+          avatar: dataUrl,
+          isImage: true
+        };
+        setCurrentUser(updated);
+        try {
+          localStorage.setItem('alzaydan_current_user', JSON.stringify(updated));
+          const emps = JSON.parse(localStorage.getItem('alzaydan_custom_employees') || '[]');
+          const updatedEmps = emps.map(emp => {
+            if (
+              (emp.email && emp.email.toLowerCase() === (updated.email || '').toLowerCase()) ||
+              emp.id === updated.id
+            ) {
+              return { ...emp, image: dataUrl, avatar: dataUrl, isImage: true };
+            }
+            return emp;
+          });
+          localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updatedEmps));
+        } catch (err) {
+          console.error('Failed to save profile photo', err);
+        }
+        window.dispatchEvent(new Event('alzaydan_user_updated'));
+        toast.success('Profile photo updated successfully!');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     function handleClickOutside(e) {
@@ -114,14 +157,14 @@ export default function Header({
           <Menu className="w-5 h-5" />
         </button>
 
-        <div className="relative w-full max-w-md">
+        <div className="relative w-full max-w-md min-w-0">
           <Search className="w-4 h-4 text-blue-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search leads, customers, employees, tasks..."
-            className="w-full pl-10 pr-20 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 outline-none transition placeholder:text-slate-400 text-slate-800"
+            className="w-full pl-10 pr-4 sm:pr-20 py-2 text-xs bg-slate-50/70 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/15 outline-none transition placeholder:text-slate-400 text-slate-800"
           />
           <div className="absolute right-2.5 top-1/2 -translate-y-1/2 hidden sm:flex items-center pointer-events-none">
             <span className="text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border border-slate-200 bg-white text-slate-400 shadow-2xs">
@@ -132,7 +175,7 @@ export default function Header({
       </div>
 
       {/* Right: Date Filter, Notifications, Help, User Avatar + Name */}
-      <div className="flex items-center gap-2 sm:gap-3.5">
+      <div className="flex items-center gap-1.5 sm:gap-3.5 shrink-0">
         {/* Date Filter Pill */}
         <div className="relative hidden md:block">
           <button
@@ -159,7 +202,7 @@ export default function Header({
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-4 z-50 text-xs">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-2">
                 <span className="font-bold text-slate-800">Notifications</span>
                 <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
@@ -220,20 +263,30 @@ export default function Header({
           </button>
 
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs">
+            <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-slate-100 p-2 z-50 text-xs">
               <div className="px-3 py-2 border-b border-slate-100 flex items-center gap-3">
-                {currentUser?.image || currentUser?.avatar ? (
-                  <img
-                    src={currentUser.image || currentUser.avatar}
-                    alt={currentUser.name || 'User'}
-                    className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20 shadow-xs shrink-0"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-[#011635] text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
-                    {initials}
-                  </div>
-                )}
-                <div className="min-w-0">
+                <div className="relative group shrink-0">
+                  {currentUser?.image || currentUser?.avatar ? (
+                    <img
+                      src={currentUser.image || currentUser.avatar}
+                      alt={currentUser.name || 'User'}
+                      className="w-10 h-10 rounded-full object-cover ring-2 ring-blue-500/20 shadow-xs"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-[#011635] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                      {initials}
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="Change Profile Photo"
+                    className="absolute inset-0 bg-black/40 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-white transition-opacity cursor-pointer"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="min-w-0 flex-1">
                   <div className="font-bold text-slate-900 truncate">
                     {currentUser?.name || 'Super Admin (CEO)'}
                   </div>
@@ -245,6 +298,26 @@ export default function Header({
                     <span>{currentUser?.role || currentUser?.designation || 'Staff'}</span>
                   </div>
                 </div>
+              </div>
+
+              {/* Hidden File Input for Instant Profile Photo Upload */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleProfilePhotoChange}
+              />
+
+              <div className="py-1 border-b border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Camera className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Change Profile Photo</span>
+                </button>
               </div>
 
               <div className="pt-1">

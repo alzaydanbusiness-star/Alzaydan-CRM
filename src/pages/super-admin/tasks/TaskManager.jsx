@@ -1040,7 +1040,7 @@ export default function TaskManager({
 
           {/* Table (Columns match Image 2 exactly) */}
           <div className="overflow-x-auto min-h-[300px]">
-            <table className="w-full table-fixed text-left text-xs">
+            <table className="w-full min-w-[850px] table-fixed text-left text-xs">
               <thead>
                 <tr className="text-slate-400 text-[10px] font-bold uppercase tracking-wider border-b border-slate-100 bg-slate-50/50">
                   <th className="w-[6%] whitespace-nowrap py-3 px-2">SL.NO</th>
@@ -1283,7 +1283,7 @@ export default function TaskManager({
       )}
       {taskActionDialog && selectedTaskForAction && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/50 p-4">
-          <form onSubmit={(event) => { event.preventDefault(); if (taskActionDialog === 'postpone') { const due = postponeDate ? new Date(postponeDate + 'T' + (postponeTime || '09:00')) : new Date(selectedTaskForAction.dueDate); const nextDue = Number.isNaN(due.getTime()) ? new Date() : due; if (!postponeDate) nextDue.setDate(nextDue.getDate() + 1); setTaskList((prev) => prev.map((task) => task.id === selectedTaskForAction.id ? { ...task, dueDate: nextDue.toLocaleString() } : task)); } else { const dateTime = statusDueDate ? new Date(statusDueDate + 'T' + (statusDueTime || '09:00')).toLocaleString() : selectedTaskForAction.dueDate; setTaskList((prev) => prev.map((task) => task.id === selectedTaskForAction.id ? { ...task, status: statusDraft, completed: statusDraft === 'Completed', dueDate: dateTime, priority: statusPriority, comments: statusComments, note: statusAddNote ? statusComments : task.note } : task)); } setTaskActionDialog(null); toast.success(taskActionDialog === 'postpone' ? 'Task rescheduled' : 'Task status updated'); }} className="w-full max-w-lg rounded-lg bg-white text-sm shadow-2xl">
+          <form onSubmit={(event) => { event.preventDefault(); if (taskActionDialog === 'postpone') { const due = postponeDate ? new Date(postponeDate + 'T' + (postponeTime || '09:00')) : new Date(selectedTaskForAction.dueDate); const nextDue = Number.isNaN(due.getTime()) ? new Date() : due; if (!postponeDate) nextDue.setDate(nextDue.getDate() + 1); setTaskList((prev) => prev.map((task) => task.id === selectedTaskForAction.id ? { ...task, dueDate: nextDue.toLocaleString() } : task)); } else { const dateTime = statusDueDate ? new Date(statusDueDate + 'T' + (statusDueTime || '09:00')).toLocaleString() : selectedTaskForAction.dueDate; setTaskList((prev) => prev.map((task) => task.id === selectedTaskForAction.id ? { ...task, status: statusDraft, completed: statusDraft === 'Completed', dueDate: dateTime, priority: statusPriority, comments: statusComments, note: statusAddNote ? statusComments : task.note } : task)); } setTaskActionDialog(null); toast.success(taskActionDialog === 'postpone' ? 'Task rescheduled' : 'Task status updated'); }} className="w-full max-w-lg rounded-lg bg-white text-sm shadow-2xl max-h-[90vh] overflow-y-auto">
             <header className="border-b px-6 py-4 text-lg font-bold">{taskActionDialog === 'postpone' ? 'Postpone Task' : 'Change Task Status'}</header>
             <div className="space-y-3 p-5 text-xs">
               {taskActionDialog === 'postpone' ? <><label className="flex items-center justify-between gap-4">Due Date *<input type="date" required value={postponeDate} onChange={(e) => setPostponeDate(e.target.value)} className="rounded border p-2" /></label><label className="flex items-center justify-between gap-4">Time<input type="time" value={postponeTime} onChange={(e) => setPostponeTime(e.target.value)} className="rounded border p-2" /></label></> : <>
@@ -1301,7 +1301,7 @@ export default function TaskManager({
       {/* ================= MODAL: CREATE OR ASSIGN TASK ================= */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-[#011635]" />
@@ -1611,7 +1611,7 @@ export default function TaskManager({
 
           {/* Table (Matching Image 3) */}
           <div className="overflow-x-auto border border-slate-100 rounded-xl">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full min-w-[900px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/70 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
                   <th className="py-3 px-3">SL.NO</th>
@@ -2003,7 +2003,7 @@ export default function TaskManager({
       {/* Modal for + New Template */}
       {isAddTemplateModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 mb-3">
               <h4 className="font-bold text-xs text-slate-900">Add New Task Template</h4>
               <button

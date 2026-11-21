@@ -1190,7 +1190,7 @@ export default function CustomerManager({
 
             {/* Customer Table */}
             <div className="overflow-x-auto min-h-[280px]">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[900px] text-left text-xs">
                 <thead>
                   <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
                     <th className="py-3 px-3">SL.No</th>
@@ -1535,7 +1535,7 @@ export default function CustomerManager({
 
             {/* Contact Table (Exact columns: SL.No, Contact Name, Designation, Customer Name, Owner, Mobile, Actions) */}
             <div className="overflow-x-auto min-h-[280px]">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[700px] text-left text-xs">
                 <thead>
                   <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
                     <th className="py-3 px-3">SL.No</th>
@@ -1701,7 +1701,7 @@ export default function CustomerManager({
       {/* ================= MODAL: ASSIGN CUSTOMER/PROSPECT ================= */}
       {isAssignCustModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#011635]" />
@@ -1758,7 +1758,7 @@ export default function CustomerManager({
       {/* ================= MODAL: UPLOAD CUSTOMER/PROSPECT ================= */}
       {isUploadCustModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <UploadCloud className="w-5 h-5 text-[#011635]" />
@@ -1812,7 +1812,7 @@ export default function CustomerManager({
       {/* ================= MODAL: ASSIGN CONTACT ================= */}
       {isAssignContModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <UserCheck className="w-5 h-5 text-[#011635]" />
@@ -1869,7 +1869,7 @@ export default function CustomerManager({
       {/* ================= MODAL: UPLOAD CONTACT ================= */}
       {isUploadContModalOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <div className="flex items-center gap-2">
                 <UploadCloud className="w-5 h-5 text-[#011635]" />

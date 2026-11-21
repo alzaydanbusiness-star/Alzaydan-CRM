@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   LayoutDashboard,
   Kanban,
@@ -26,6 +26,18 @@ export default function Sidebar({
     { name: 'Commissions', icon: Award },
     { name: 'Settings', icon: Settings }
   ];
+
+  // Prevent background scrolling on mobile when sidebar drawer is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
 
   return (
     <>

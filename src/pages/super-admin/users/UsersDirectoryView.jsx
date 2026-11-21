@@ -1454,7 +1454,7 @@ export default function UsersDirectoryView() {
 
         {/* Table View (Matching Image 1 Columns Exactly) */}
         <div className="overflow-x-auto min-h-[360px]">
-          <table className="w-full text-left text-xs">
+          <table className="w-full min-w-[850px] text-left text-xs">
             <thead>
               <tr className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold text-slate-600 tracking-tight">
                 <th className="py-3 px-4 w-12 text-center">SL.No</th>
@@ -3112,7 +3112,7 @@ export default function UsersDirectoryView() {
       {/* ============================================================== */}
       {addOptionModal.isOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             {/* Header */}
             <div className="p-4 bg-[#011635] text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
@@ -3180,7 +3180,7 @@ export default function UsersDirectoryView() {
       {/* ============================================================== */}
       {isHierarchyModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
             <div className="p-4 bg-[#011635] text-white flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <Network className="w-5 h-5 text-emerald-400" />

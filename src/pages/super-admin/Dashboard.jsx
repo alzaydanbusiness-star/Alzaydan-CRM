@@ -44,6 +44,14 @@ export default function SuperAdminDashboard({
     }
   });
 
+  // Authentication Guard: Redirect to /login if user is not authenticated
+  useEffect(() => {
+    const stored = localStorage.getItem('alzaydan_current_user');
+    if (!stored) {
+      navigate('/login', { replace: true });
+    }
+  }, [navigate]);
+
   useEffect(() => {
     const handleUpdate = () => {
       try {
@@ -326,11 +334,12 @@ export default function SuperAdminDashboard({
   const handleSignOut = () => {
     try {
       localStorage.removeItem('alzaydan_current_user');
+      sessionStorage.clear();
     } catch {
       // ignore
     }
     toast.success('Signed out from Super Admin Console');
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   return (
@@ -648,7 +657,7 @@ export default function SuperAdminDashboard({
       {/* Modal Dialogs for Other Quick Actions */}
       {activeModal && activeModal !== 'add-employee' && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="font-bold text-base text-slate-900">
                 {activeModal === 'create-lead' && 'Create Commercial Lead'}

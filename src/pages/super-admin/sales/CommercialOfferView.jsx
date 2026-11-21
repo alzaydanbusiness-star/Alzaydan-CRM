@@ -1192,7 +1192,7 @@ export default function CommercialOfferView({
               ) : (
                 <div className="space-y-3">
                   <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[750px] text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 font-bold text-[11px]">
                           <th className="py-2.5 px-3 w-10 text-center">#</th>
@@ -1583,7 +1583,7 @@ export default function CommercialOfferView({
                   </div>
 
                   <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                    <table className="w-full text-left text-xs">
+                    <table className="w-full min-w-[700px] text-left text-xs">
                       <thead>
                         <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
                           <th className="py-2.5 px-3">Item Name</th>
@@ -1983,7 +1983,7 @@ export default function CommercialOfferView({
 
             {/* Table (Columns: SL.No, Quotation#, Owner, Date ▾, Opportunity, Customer, Amount, VAT, Total, Status, Actions) */}
             <div className="overflow-x-auto min-h-[300px]">
-              <table className="w-full text-left text-xs">
+              <table className="w-full min-w-[1000px] text-left text-xs">
                 <thead>
                   <tr className="text-slate-500 text-[11px] font-bold border-b border-slate-100 bg-slate-50/50">
                     <th className="py-3 px-3">SL.No</th>

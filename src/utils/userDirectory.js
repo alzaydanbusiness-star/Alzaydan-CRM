@@ -21,9 +21,9 @@ export const CANONICAL_SYSTEM_USERS = [
     status: 'Active',
     avatarBg: 'bg-[#011635] text-white',
     avatarText: 'SA',
-    isImage: false,
-    image: null,
-    avatar: null,
+    isImage: true,
+    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=256&q=80',
     phone: '+971 50 123 4567',
     mobileNumber: '50 123 4567',
     mobilePrefix: '+971',
@@ -48,9 +48,9 @@ export const CANONICAL_SYSTEM_USERS = [
     status: 'Active',
     avatarBg: 'bg-emerald-600 text-white',
     avatarText: 'MS',
-    isImage: false,
-    image: null,
-    avatar: null,
+    isImage: true,
+    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=256&q=80',
     phone: '+971 56 789 0987',
     mobileNumber: '56 789 0987',
     mobilePrefix: '+971',
@@ -75,9 +75,9 @@ export const CANONICAL_SYSTEM_USERS = [
     status: 'Active',
     avatarBg: 'bg-blue-600 text-white',
     avatarText: 'MR',
-    isImage: false,
-    image: null,
-    avatar: null,
+    isImage: true,
+    image: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=256&q=80',
+    avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=256&q=80',
     phone: '+971 50 888 1234',
     mobileNumber: '50 888 1234',
     mobilePrefix: '+971',
@@ -102,9 +102,9 @@ export const CANONICAL_SYSTEM_USERS = [
     status: 'Active',
     avatarBg: 'bg-indigo-600 text-white',
     avatarText: 'MS',
-    isImage: false,
-    image: null,
-    avatar: null,
+    isImage: true,
+    image: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=256&q=80',
+    avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=256&q=80',
     phone: '+971 55 556 7890',
     mobileNumber: '55 556 7890',
     mobilePrefix: '+971',
@@ -129,9 +129,9 @@ export const CANONICAL_SYSTEM_USERS = [
     status: 'Active',
     avatarBg: 'bg-teal-600 text-white',
     avatarText: 'SH',
-    isImage: false,
-    image: null,
-    avatar: null,
+    isImage: true,
+    image: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=80',
+    avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=256&q=80',
     phone: '+971 50 777 8899',
     mobileNumber: '50 777 8899',
     mobilePrefix: '+971',
@@ -245,7 +245,25 @@ export function getStoredUsers() {
       return true;
     });
 
-    if (filtered.length !== parsed.length) {
+    // Ensure all active users have valid profile photos from canonical if missing
+    let hasUpdates = filtered.length !== parsed.length;
+    filtered = filtered.map((u) => {
+      const canonical = CANONICAL_SYSTEM_USERS.find(
+        (c) => c.id === u.id || (c.email && c.email.toLowerCase() === (u.email || '').toLowerCase())
+      );
+      if (canonical && (!u.image || !u.avatar)) {
+        hasUpdates = true;
+        return {
+          ...u,
+          image: u.image || canonical.image,
+          avatar: u.avatar || canonical.avatar,
+          isImage: true
+        };
+      }
+      return u;
+    });
+
+    if (hasUpdates) {
       localStorage.setItem('alzaydan_custom_employees', JSON.stringify(filtered));
     }
 
@@ -291,7 +309,16 @@ export function getLoggedInUser() {
   try {
     const raw = localStorage.getItem('alzaydan_current_user');
     if (raw) {
-      return JSON.parse(raw);
+      const u = JSON.parse(raw);
+      const canonical = CANONICAL_SYSTEM_USERS.find(
+        (c) => c.id === u.id || (c.email && c.email.toLowerCase() === (u.email || '').toLowerCase())
+      ) || CANONICAL_SYSTEM_USERS[0];
+      return {
+        ...u,
+        image: u.image || u.avatar || canonical.image,
+        avatar: u.avatar || u.image || canonical.avatar,
+        isImage: true
+      };
     }
   } catch {}
   return CANONICAL_SYSTEM_USERS[0];

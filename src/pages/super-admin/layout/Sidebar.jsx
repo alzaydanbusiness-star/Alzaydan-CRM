@@ -71,6 +71,18 @@ export default function Sidebar({
     };
   }, []);
 
+  // Prevent background scrolling while the mobile sidebar drawer is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [sidebarOpen]);
+
   const isRep = isSalesExecutive(currentUser);
 
   if (activeNav !== prevActiveNav) {

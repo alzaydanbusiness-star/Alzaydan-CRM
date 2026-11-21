@@ -193,7 +193,7 @@ export default function Header({
           </button>
 
           {notificationsOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in">
               <div className="px-4 py-2 border-b border-slate-100 flex items-center justify-between">
                 <span className="text-xs font-bold text-slate-900">Team Alerts ({unreadCount})</span>
                 <span className="text-[10px] text-blue-600 font-semibold cursor-pointer" onClick={() => toast.success('Alerts marked as read')}>
@@ -252,7 +252,7 @@ export default function Header({
           </button>
 
           {profileDropdownOpen && (
-            <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in">
+            <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 animate-in fade-in">
               <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/60">
                 <div className="text-xs font-bold text-slate-900">{leadName}</div>
                 <div className="text-[11px] text-slate-500">{leadEmail}</div>
