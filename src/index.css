@@ -6,3 +6,17 @@ html, body, #root {
   margin: 0;
   padding: 0;
 }
+
+/* Suppress Netlify Pre-launch Toolbar & Drawer */
+netlify-drawer,
+#netlify-drawer,
+[class*="netlify-drawer"],
+[id*="netlify-drawer"],
+[data-netlify-drawer],
+iframe[src*="netlify"],
+iframe[id*="netlify"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}

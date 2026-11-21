@@ -5,6 +5,44 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Al Zaydan International FZE - CRM ERP</title>
+    <style>
+      netlify-drawer,
+      #netlify-drawer,
+      [class*="netlify-drawer"],
+      [id*="netlify-drawer"],
+      [data-netlify-drawer],
+      iframe[src*="netlify"],
+      iframe[id*="netlify"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+      }
+    </style>
+    <script>
+      (function() {
+        function removeNetlifyElements() {
+          try {
+            document.querySelectorAll('iframe').forEach(function(el) {
+              var s = (el.src || '') + (el.id || '') + (el.className || '');
+              if (s.toLowerCase().includes('netlify')) {
+                el.remove();
+              }
+            });
+            document.querySelectorAll('netlify-drawer, [id*="netlify-drawer"], [class*="netlify-drawer"], [class*="netlify-badge"]').forEach(function(el) {
+              if (el && el.id !== 'root') el.remove();
+            });
+          } catch(e) {}
+        }
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', removeNetlifyElements);
+        } else {
+          removeNetlifyElements();
+        }
+        var obs = new MutationObserver(removeNetlifyElements);
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
