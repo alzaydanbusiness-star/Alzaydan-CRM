@@ -114,8 +114,13 @@ export default function LeadManager({
   }, [employees]);
 
   const activeUser = useMemo(() => getLoggedInUser(), []);
-  const defaultOwnerName = availableUsers[0]?.name || activeUser?.name || 'Super Admin';
-  const defaultAssigneeName = availableUsers.find(u => u.roleTier === 'staff')?.name || availableUsers[0]?.name || 'Super Admin';
+  const isRep = useMemo(() => isSalesExecutive(activeUser), [activeUser]);
+  const defaultOwnerName = isRep
+    ? activeUser?.name || 'Sales Executive'
+    : availableUsers[0]?.name || activeUser?.name || 'Super Admin';
+  const defaultAssigneeName = isRep
+    ? activeUser?.name || 'Sales Executive'
+    : availableUsers.find(u => u.roleTier === 'staff')?.name || availableUsers[0]?.name || 'Super Admin';
 
   // Form State for Add Lead (matching Image 1)
   const [addLeadForm, setAddLeadForm] = useState({
@@ -419,8 +424,6 @@ export default function LeadManager({
     } catch {}
   }, []);
 
-  const isRep = useMemo(() => isSalesExecutive(activeUser), [activeUser]);
-
   // Role-Based Accessible Leads (Filtered by Enterprise Hierarchy)
   const accessibleLeads = useMemo(() => {
     return filterLeadsByRole(leadList, activeUser);
@@ -599,7 +602,10 @@ export default function LeadManager({
       leadCode: addLeadForm.leadNumber || `CTL#${1002 + leadList.length}`,
       date: addLeadForm.leadDate || '16-11-2026',
       assignedDate: addLeadForm.leadDate || '16-11-2026',
-      assignedTo: addLeadForm.assignTo.replace(' (EMPLOYEE)', ''),
+      assignedTo: (isRep
+        ? (activeUser?.name || addLeadForm.leadOwner || 'Sales Executive')
+        : (addLeadForm.assignTo || addLeadForm.leadOwner || 'Super Admin')
+      ).replace(' (EMPLOYEE)', ''),
       assigneeAvatarBg: 'bg-[#011635] text-white',
       name: (finalCustName || finalContactName).toUpperCase(),
       contactName: finalContactName,
@@ -615,9 +621,12 @@ export default function LeadManager({
       campaign: addLeadForm.campaign || 'Direct Inbound',
       leadTags: addLeadForm.leadTags || '',
       sourceName: addLeadForm.sourceName || '',
-      createdBy: 'Super Admin',
+      createdBy: activeUser?.name || 'Super Admin',
       creatorAvatarBg: 'bg-slate-800 text-white',
-      owner: addLeadForm.leadOwner.replace(' (EMPLOYEE)', ''),
+      owner: (isRep
+        ? (activeUser?.name || addLeadForm.leadOwner || 'Sales Executive')
+        : (addLeadForm.leadOwner || 'Super Admin')
+      ).replace(' (EMPLOYEE)', ''),
       ownerAvatarBg: 'bg-emerald-600 text-white',
       rating: addLeadForm.rating,
       status: addLeadForm.status,
@@ -745,8 +754,14 @@ export default function LeadManager({
 
     const updatedLead = {
       ...activeLead,
-      owner: editLeadForm.leadOwner.replace(' (EMPLOYEE)', ''),
-      assignedTo: editLeadForm.assignTo.replace(' (EMPLOYEE)', ''),
+      owner: (isRep
+        ? (activeUser?.name || editLeadForm.leadOwner || 'Sales Executive')
+        : (editLeadForm.leadOwner || 'Super Admin')
+      ).replace(' (EMPLOYEE)', ''),
+      assignedTo: (isRep
+        ? (activeLead?.assignedTo || activeUser?.name || editLeadForm.leadOwner || 'Sales Executive')
+        : (editLeadForm.assignTo || editLeadForm.leadOwner || 'Super Admin')
+      ).replace(' (EMPLOYEE)', ''),
       contactPrefix: editLeadForm.contactPrefix,
       contactName: editLeadForm.contactName.trim(),
       name: (editLeadForm.contactName || editLeadForm.customerName).trim().toUpperCase(),
@@ -1128,9 +1143,10 @@ export default function LeadManager({
                     <select
                       value={addLeadForm.leadOwner}
                       onChange={(e) => setAddLeadForm({ ...addLeadForm, leadOwner: e.target.value })}
-                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
+                      disabled={isRep}
+                      className={`w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-[#16477A] ${isRep ? 'opacity-90 cursor-not-allowed' : 'cursor-pointer'}`}
                     >
-                      {availableUsers.map((u) => (
+                      {(isRep ? [{ id: activeUser?.id || 'rep', name: activeUser?.name || 'Sales Executive', role: 'Sales Executive' }] : availableUsers).map((u) => (
                         <option key={`lead-owner-${u.id || u.name}`} value={u.name}>
                           {u.name} ({u.role || u.crmProfile || 'Employee'})
                         </option>
@@ -1142,29 +1158,31 @@ export default function LeadManager({
                   </div>
                 </div>
 
-                {/* 2. Assign To */}
-                <div>
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50/70 border border-blue-100 text-[#16477A] font-bold text-xs mb-1.5">
-                    <User className="w-3.5 h-3.5" />
-                    <span>Assign To</span>
-                  </div>
-                  <div className="relative">
-                    <select
-                      value={addLeadForm.assignTo}
-                      onChange={(e) => setAddLeadForm({ ...addLeadForm, assignTo: e.target.value })}
-                      className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
-                    >
-                      {availableUsers.map((u) => (
-                        <option key={`assign-to-${u.id || u.name}`} value={u.name}>
-                          {u.name} ({u.role || u.crmProfile || 'Employee'})
-                        </option>
-                      ))}
-                    </select>
-                    <div className="w-5 h-5 rounded-full bg-[#16477A] text-white text-[9px] font-bold flex items-center justify-center absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
-                      {(addLeadForm.assignTo || 'A').trim().charAt(0).toUpperCase()}
+                {/* 2. Assign To (Hidden for Sales Executives, as they manage their own leads) */}
+                {!isRep && (
+                  <div>
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50/70 border border-blue-100 text-[#16477A] font-bold text-xs mb-1.5">
+                      <User className="w-3.5 h-3.5" />
+                      <span>Assign To</span>
+                    </div>
+                    <div className="relative">
+                      <select
+                        value={addLeadForm.assignTo}
+                        onChange={(e) => setAddLeadForm({ ...addLeadForm, assignTo: e.target.value })}
+                        className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
+                      >
+                        {availableUsers.map((u) => (
+                          <option key={`assign-to-${u.id || u.name}`} value={u.name}>
+                            {u.name} ({u.role || u.crmProfile || 'Employee'})
+                          </option>
+                        ))}
+                      </select>
+                      <div className="w-5 h-5 rounded-full bg-[#16477A] text-white text-[9px] font-bold flex items-center justify-center absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        {(addLeadForm.assignTo || 'A').trim().charAt(0).toUpperCase()}
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* 3. Contact Name * */}
                 <div>
@@ -1871,15 +1889,17 @@ export default function LeadManager({
               <span>Duplicate Lead(s)</span>
             </button>
 
-            {/* 2. Assign Lead Button */}
-            <button
-              type="button"
-              onClick={() => setIsAssignModalOpen(true)}
-              className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Assign Lead</span>
-            </button>
+            {/* 2. Assign Lead Button (Hidden for Sales Executives) */}
+            {!isRep && (
+              <button
+                type="button"
+                onClick={() => setIsAssignModalOpen(true)}
+                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Assign Lead</span>
+              </button>
+            )}
 
             {/* 3. Upload Lead Button */}
             <button
@@ -2315,18 +2335,20 @@ export default function LeadManager({
                                   <Pencil className="w-3.5 h-3.5 text-slate-600" />
                                   <span>Change Status &amp; Rating</span>
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSingleAssignLead(lead);
-                                    setSingleAssignTarget(lead.assignedTo || lead.owner || defaultAssigneeName);
-                                    setActiveActionMenuId(null);
-                                  }}
-                                  className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
-                                >
-                                  <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
-                                  <span>Assign Lead</span>
-                                </button>
+                                {!isRep && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setSingleAssignLead(lead);
+                                      setSingleAssignTarget(lead.assignedTo || lead.owner || defaultAssigneeName);
+                                      setActiveActionMenuId(null);
+                                    }}
+                                    className="w-full px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 transition cursor-pointer"
+                                  >
+                                    <UserPlus className="w-3.5 h-3.5 text-indigo-600" />
+                                    <span>Assign Lead</span>
+                                  </button>
+                                )}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -2807,9 +2829,10 @@ export default function LeadManager({
                   <select
                     value={editLeadForm.leadOwner}
                     onChange={(e) => setEditLeadForm({ ...editLeadForm, leadOwner: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
+                    disabled={isRep}
+                    className={`w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] ${isRep ? 'opacity-90 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
-                    {availableUsers.map((u) => (
+                    {(isRep ? [{ name: activeUser?.name || 'Sales Executive', roleTier: 'STAFF' }] : availableUsers).map((u) => (
                       <option key={`edit-owner-${u.name}`} value={u.name}>
                         {u.name} ({u.roleTier?.toUpperCase() || 'USER'})
                       </option>
@@ -2817,23 +2840,25 @@ export default function LeadManager({
                   </select>
                 </div>
 
-                {/* 2. Assigned To */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Assigned To
-                  </label>
-                  <select
-                    value={editLeadForm.assignTo}
-                    onChange={(e) => setEditLeadForm({ ...editLeadForm, assignTo: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
-                  >
-                    {availableUsers.map((u) => (
-                      <option key={`edit-assign-${u.name}`} value={u.name}>
-                        {u.name} ({u.roleTier?.toUpperCase() || 'USER'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {/* 2. Assigned To (Hidden for Sales Executives) */}
+                {!isRep && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Assigned To
+                    </label>
+                    <select
+                      value={editLeadForm.assignTo}
+                      onChange={(e) => setEditLeadForm({ ...editLeadForm, assignTo: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#16477A] cursor-pointer"
+                    >
+                      {availableUsers.map((u) => (
+                        <option key={`edit-assign-${u.name}`} value={u.name}>
+                          {u.name} ({u.roleTier?.toUpperCase() || 'USER'})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
 
                 {/* 3. Contact Name * */}
                 <div>
