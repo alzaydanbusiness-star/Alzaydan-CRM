@@ -5,6 +5,25 @@ import { db } from '../config/firebase';
 
 export const INVENTORY_STORAGE_KEY = 'alzaydan_inventory_products';
 export const INVENTORY_CATEGORIES_KEY = 'alzaydan_inventory_categories';
+export const INVENTORY_DELETED_KEY = 'alzaydan_deleted_inventory_ids';
+
+// Track deleted inventory IDs so deletions persist across refresh and cloud sync
+export function getDeletedInventoryIds() {
+  try {
+    const raw = localStorage.getItem(INVENTORY_DELETED_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(String);
+    }
+  } catch {}
+  return [];
+}
+
+export function saveDeletedInventoryIds(ids) {
+  try {
+    localStorage.setItem(INVENTORY_DELETED_KEY, JSON.stringify([...new Set(ids.map(String))]));
+  } catch {}
+}
 
 export const DEFAULT_INVENTORY_CATEGORIES = [
   { id: 'vrv_systems', name: 'VRV / VRF Systems', code: 'VRV' },
@@ -182,21 +201,27 @@ export function saveStoredCategories(categories) {
 
 // Retrieve active inventory products
 export function getStoredInventory() {
+  const deletedIds = getDeletedInventoryIds();
   try {
     const raw = localStorage.getItem(INVENTORY_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed.map(sanitizeProduct);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter(p => !deletedIds.includes(String(p.id)) && !deletedIds.includes(String(p.product_code)))
+          .map(sanitizeProduct);
       }
     }
   } catch {}
   
-  // Initialize with initial products
+  // Initialize with initial products (filtering out any deleted ones)
+  const initial = INITIAL_INVENTORY_PRODUCTS
+    .filter(p => !deletedIds.includes(String(p.id)) && !deletedIds.includes(String(p.product_code)))
+    .map(sanitizeProduct);
   try {
-    localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(INITIAL_INVENTORY_PRODUCTS));
+    localStorage.setItem(INVENTORY_STORAGE_KEY, JSON.stringify(initial));
   } catch {}
-  return INITIAL_INVENTORY_PRODUCTS.map(sanitizeProduct);
+  return initial;
 }
 
 // Ensure product has all required fields with proper types
@@ -255,6 +280,12 @@ export function addInventoryProduct(productData) {
     code = `PRD-2026-${String(nextId).padStart(4, '0')}`;
   }
 
+  // Un-blacklist id / code if adding a new or re-added product
+  const deletedIds = getDeletedInventoryIds();
+  if (deletedIds.includes(String(nextId)) || deletedIds.includes(code)) {
+    saveDeletedInventoryIds(deletedIds.filter(d => d !== String(nextId) && d !== code));
+  }
+
   const newProduct = sanitizeProduct({
     ...productData,
     id: nextId,
@@ -289,7 +320,16 @@ export function updateInventoryProduct(id, updatedFields) {
 
 // Delete product
 export function deleteInventoryProduct(id) {
+  const deletedIds = getDeletedInventoryIds();
   const products = getStoredInventory();
+  const toDelete = products.find(p => String(p.id) === String(id));
+  
+  const updatedDeleted = [...deletedIds, String(id)];
+  if (toDelete?.product_code) {
+    updatedDeleted.push(String(toDelete.product_code));
+  }
+  saveDeletedInventoryIds(updatedDeleted);
+
   const filtered = products.filter(p => String(p.id) !== String(id));
   saveStoredInventory(filtered);
 
@@ -326,13 +366,16 @@ async function syncToFirestore(products) {
 // Fast non-blocking pull from Firestore
 export async function syncCloudInventory() {
   try {
+    const deletedIds = getDeletedInventoryIds();
     const snap = await Promise.race([
       getDocs(collection(db, 'inventory')),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
     ]);
 
     if (snap && !snap.empty) {
-      const cloudProducts = snap.docs.map(d => sanitizeProduct(d.data()));
+      const cloudProducts = snap.docs
+        .map(d => sanitizeProduct(d.data()))
+        .filter(p => !deletedIds.includes(String(p.id)) && !deletedIds.includes(String(p.product_code)));
       if (cloudProducts.length > 0) {
         return cloudProducts;
       }

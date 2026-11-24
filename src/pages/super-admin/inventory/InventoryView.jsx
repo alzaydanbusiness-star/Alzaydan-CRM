@@ -12,9 +12,6 @@ import {
   CheckCircle2,
   XCircle,
   PackageCheck,
-  TrendingUp,
-  DollarSign,
-  Layers,
   ArrowLeft,
   X,
   FileSpreadsheet,
@@ -282,31 +279,6 @@ export default function InventoryView() {
       });
   }, [products, searchQuery, selectedCategory, selectedStatus, sortBy]);
 
-  // Overall KPI Metrics
-  const metrics = useMemo(() => {
-    const totalSKUs = products.length;
-    const totalUnits = products.reduce((acc, p) => acc + (p.quantity || 0), 0);
-    const totalPurchaseValuation = products.reduce(
-      (acc, p) => acc + (p.purchase_price || 0) * (p.quantity || 0),
-      0
-    );
-    const totalSellingValuation = products.reduce(
-      (acc, p) => acc + (p.selling_price || 0) * (p.quantity || 0),
-      0
-    );
-    const potentialProfit = totalSellingValuation - totalPurchaseValuation;
-    const lowStockCount = products.filter((p) => p.status === 'Low Stock' || p.status === 'Out of Stock').length;
-
-    return {
-      totalSKUs,
-      totalUnits,
-      totalPurchaseValuation,
-      totalSellingValuation,
-      potentialProfit,
-      lowStockCount
-    };
-  }, [products]);
-
   // Live profit calculation for modal
   const modalPurchase = parseFloat(formData.purchase_price) || 0;
   const modalSelling = parseFloat(formData.selling_price) || 0;
@@ -316,25 +288,20 @@ export default function InventoryView() {
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* ============================================================== */}
-      {/* 1. TOP HEADER & METRIC CARDS                                   */}
+      {/* 1. TOP HEADER & ACTIONS                                        */}
       {/* ============================================================== */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#011635] to-[#04336e] text-white flex items-center justify-center shadow-md shadow-[#011635]/20">
               <Boxes className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
-                  Inventory &amp; Stock Management
-                </h1>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                  Live Commercial Catalog
-                </span>
-              </div>
+              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
+                Inventory &amp; Stock Management
+              </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Manage products, product codes, categories, purchase &amp; selling prices, and live warehouse inventory.
+                Manage products, product codes, categories, selling prices, and live warehouse inventory.
               </p>
             </div>
           </div>
@@ -357,72 +324,6 @@ export default function InventoryView() {
               <Plus className="w-4 h-4" />
               <span>Add Product</span>
             </button>
-          </div>
-        </div>
-
-        {/* 4 Summary Metric Cards */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 pt-5">
-          {/* Card 1: Total SKUs */}
-          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Total Active SKUs</span>
-              <Layers className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
-              {metrics.totalSKUs} <span className="text-xs font-medium text-slate-500">Products</span>
-            </div>
-            <div className="text-[11px] text-slate-500 flex items-center gap-1">
-              <span>Total Stock:</span>
-              <span className="font-bold text-slate-800">{metrics.totalUnits} Units</span>
-            </div>
-          </div>
-
-          {/* Card 2: Purchase Valuation */}
-          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Inventory Cost (Valuation)</span>
-              <DollarSign className="w-4 h-4 text-indigo-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-extrabold text-slate-900 truncate">
-              AED {metrics.totalPurchaseValuation.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-[11px] text-slate-500">
-              Based on purchase price
-            </div>
-          </div>
-
-          {/* Card 3: Retail Potential */}
-          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Retail Value (Potential)</span>
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-xl sm:text-2xl font-extrabold text-emerald-700 truncate">
-              AED {metrics.totalSellingValuation.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-            </div>
-            <div className="text-[11px] font-semibold text-emerald-600 flex items-center gap-1">
-              <span>Profit Potential:</span>
-              <span>+AED {metrics.potentialProfit.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-            </div>
-          </div>
-
-          {/* Card 4: Low Stock Alert */}
-          <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/80 space-y-1">
-            <div className="flex items-center justify-between text-slate-500 text-xs font-semibold">
-              <span>Stock Health</span>
-              <AlertTriangle className={`w-4 h-4 ${metrics.lowStockCount > 0 ? 'text-amber-500' : 'text-emerald-500'}`} />
-            </div>
-            <div className="text-xl sm:text-2xl font-extrabold text-slate-900">
-              {metrics.lowStockCount}{' '}
-              <span className="text-xs font-medium text-slate-500">Need Attention</span>
-            </div>
-            <div className="text-[11px] text-slate-500">
-              {metrics.lowStockCount === 0 ? (
-                <span className="text-emerald-600 font-semibold">All products well-stocked</span>
-              ) : (
-                <span className="text-amber-600 font-semibold">Low or out-of-stock items</span>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -516,17 +417,16 @@ export default function InventoryView() {
                 <th className="py-3 px-3.5">Product Code</th>
                 <th className="py-3 px-3.5 min-w-[240px]">Product Name &amp; Description</th>
                 <th className="py-3 px-3.5">Category</th>
-                <th className="py-3 px-3.5 text-right">Purchase Price</th>
                 <th className="py-3 px-3.5 text-right">Selling Price</th>
                 <th className="py-3 px-3.5 text-center">Margin</th>
                 <th className="py-3 px-3.5 text-center">Stock / Unit</th>
-                <th className="py-3 px-3.5 text-center w-28">Actions</th>
+                <th className="py-3 px-3.5 text-center min-w-[200px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {filteredProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <Boxes className="w-10 h-10 mx-auto text-slate-300 mb-2 stroke-1" />
                     <div className="font-bold text-slate-700 text-sm">No products found</div>
                     <div className="text-xs text-slate-400 mt-0.5">
@@ -596,11 +496,6 @@ export default function InventoryView() {
                         </span>
                       </td>
 
-                      {/* Purchase Price */}
-                      <td className="py-3 px-3.5 text-right font-mono font-medium text-slate-600">
-                        AED {p.purchase_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
-
                       {/* Selling Price */}
                       <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">
                         AED {p.selling_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -641,7 +536,7 @@ export default function InventoryView() {
                               setAdjustQtyInput('');
                               setAdjustType('add');
                             }}
-                            className="p-1.5 rounded-lg hover:bg-blue-50 text-slate-500 hover:text-blue-600 transition cursor-pointer"
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200/80 transition cursor-pointer shadow-2xs"
                             title="Quick Stock In / Out"
                           >
                             <ArrowUpDown className="w-3.5 h-3.5" />
@@ -651,20 +546,22 @@ export default function InventoryView() {
                           <button
                             type="button"
                             onClick={() => handleOpenEditModal(p)}
-                            className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 transition-all font-semibold flex items-center gap-1 cursor-pointer shadow-2xs text-[11px]"
                             title="Edit Product"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
+                            <span>Edit</span>
                           </button>
 
                           {/* Delete Button */}
                           <button
                             type="button"
                             onClick={() => setDeleteCandidate(p)}
-                            className="p-1.5 rounded-lg hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+                            className="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white border border-rose-200 hover:border-rose-600 transition-all font-semibold flex items-center gap-1 cursor-pointer shadow-2xs text-[11px]"
                             title="Delete Product"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
+                            <span>Delete</span>
                           </button>
                         </div>
                       </td>
