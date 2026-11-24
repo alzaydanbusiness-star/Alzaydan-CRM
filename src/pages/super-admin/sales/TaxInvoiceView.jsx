@@ -176,7 +176,7 @@ export default function TaxInvoiceView({
     } catch {}
 
     const map = new Map();
-    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(4340) && list.length === 0 && localStorage.getItem('alzaydan_crm_quotations') === null) {
+    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(4340)) {
       map.set('CTSQ#4340', {
         id: 4340,
         quotationNo: 'CTSQ#4340',
@@ -266,7 +266,7 @@ export default function TaxInvoiceView({
     } catch {}
 
     const map = new Map();
-    if (!deletedOrders.includes('CTSO#3954') && !deletedOrders.includes(3954) && list.length === 0 && localStorage.getItem('alzaydan_crm_orders') === null) {
+    if (!deletedOrders.includes('CTSO#3954') && !deletedOrders.includes(3954)) {
       map.set('CTSO#3954', {
         id: 3954,
         orderNo: 'CTSO#3954',

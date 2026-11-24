@@ -155,7 +155,7 @@ export default function CommercialOfferView({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           const filtered = parsed.filter((q) => !deleted.includes(q.id) && !deleted.includes(q.quotationNo));
-          return deduplicateQuotations(filtered);
+          if (filtered.length > 0) return deduplicateQuotations(filtered);
         }
       }
     } catch {}

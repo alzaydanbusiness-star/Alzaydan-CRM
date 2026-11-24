@@ -47,6 +47,7 @@ export default function SalesOrderView({
     window.addEventListener('alzaydan_opportunity_updated', handleSync);
     window.addEventListener('alzaydan_lead_updated', handleSync);
     window.addEventListener('alzaydan_order_updated', handleSync);
+    window.addEventListener('alzaydan_sales_sync', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('alzaydan_customer_updated', handleSync);
@@ -54,6 +55,7 @@ export default function SalesOrderView({
       window.removeEventListener('alzaydan_opportunity_updated', handleSync);
       window.removeEventListener('alzaydan_lead_updated', handleSync);
       window.removeEventListener('alzaydan_order_updated', handleSync);
+      window.removeEventListener('alzaydan_sales_sync', handleSync);
     };
   }, []);
 
@@ -277,8 +279,8 @@ export default function SalesOrderView({
     } catch {}
 
     const map = new Map();
-    // Default CTSQ#4340 quotation matching opportunity CTEQ#7539 / tap / hai (only if not deleted)
-    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(1) && savedList.length === 0 && localStorage.getItem('alzaydan_crm_quotations') === null) {
+    // Default CTSQ#4340 quotation matching opportunity CTEQ#7539 / tap / hai (available unless explicitly deleted)
+    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(1) && !deletedQuots.includes('ctsq#4340')) {
       map.set('ctsq#4340', {
         id: 1,
         quotationNo: 'CTSQ#4340',
@@ -368,8 +370,32 @@ export default function SalesOrderView({
       if (key) map.set(key, q);
     });
 
+    // Also include quotations linked to available opportunities so any opportunity quote appears
+    availableOpportunities.forEach((opp) => {
+      const qCode = opp.quotationNo || (opp.code ? `CTSQ#${String(opp.code).replace(/[^0-9]/g, '') || '4340'}` : null);
+      if (qCode && !deletedQuots.includes(qCode) && !deletedQuots.includes(qCode.toLowerCase())) {
+        const key = qCode.trim().toLowerCase();
+        if (!map.has(key)) {
+          map.set(key, {
+            id: `quot-from-${opp.id || opp.code}`,
+            quotationNo: qCode,
+            opportunityCode: opp.code,
+            owner: opp.owner || 'muhammed shibil',
+            opportunity: opp.name || opp.title || 'tap',
+            customer: opp.customer || opp.customerName || 'hai',
+            rawAmount: opp.rawAmount || 5250.0,
+            amount: opp.amount || 'AED 5,250.00',
+            vat: opp.vat || 'AED 262.50',
+            total: opp.total || 'AED 5,512.50',
+            products: opp.products || [],
+            pointOfContact: opp.contactPerson || opp.pointOfContact || 'Procurement Department'
+          });
+        }
+      }
+    });
+
     return Array.from(map.values());
-  }, [syncTick]);
+  }, [syncTick, availableOpportunities]);
 
   const availableLeads = useMemo(() => {
     let list = Array.isArray(leads) ? [...leads] : [];

@@ -98,7 +98,7 @@ export default function ReceiptView({
     } catch {}
 
     const map = new Map();
-    if (!deletedInvs.includes('CTINV#15259') && !deletedInvs.includes(1) && list.length === 0 && localStorage.getItem('alzaydan_crm_invoices') === null) {
+    if (!deletedInvs.includes('CTINV#15259') && !deletedInvs.includes(1)) {
       map.set('CTINV#15259', {
         invoiceNo: 'CTINV#15259',
         customer: 'Shaheer',
