@@ -37,6 +37,26 @@ export default function SalesOrderView({
   const [activeCategory, setActiveCategory] = useState('All');
   // 'All' | 'Fit Out' | 'Supply' | 'Installation' | 'Supply And Installation' | 'Spare Part Sales' | 'Projects' | 'Service - Under Warranty' | 'Service - On Call' | 'Other' | 'Overview'
 
+  // Reactive sync tick across window events and cross-tab/view changes
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const handleSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('alzaydan_customer_updated', handleSync);
+    window.addEventListener('alzaydan_quotation_updated', handleSync);
+    window.addEventListener('alzaydan_opportunity_updated', handleSync);
+    window.addEventListener('alzaydan_lead_updated', handleSync);
+    window.addEventListener('alzaydan_order_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('alzaydan_customer_updated', handleSync);
+      window.removeEventListener('alzaydan_quotation_updated', handleSync);
+      window.removeEventListener('alzaydan_opportunity_updated', handleSync);
+      window.removeEventListener('alzaydan_lead_updated', handleSync);
+      window.removeEventListener('alzaydan_order_updated', handleSync);
+    };
+  }, []);
+
   // Filter States (Image 2: 3 Rows)
   const [filterDateRange, setFilterDateRange] = useState('All Month & Year');
   const [filterOwner, setFilterOwner] = useState('All Owners');
@@ -187,26 +207,6 @@ export default function SalesOrderView({
       } catch {}
     }
   }, [orders]);
-
-  // Reactive sync tick across window events and cross-tab/view changes
-  const [syncTick, setSyncTick] = useState(0);
-  useEffect(() => {
-    const handleSync = () => setSyncTick((t) => t + 1);
-    window.addEventListener('storage', handleSync);
-    window.addEventListener('alzaydan_customer_updated', handleSync);
-    window.addEventListener('alzaydan_quotation_updated', handleSync);
-    window.addEventListener('alzaydan_opportunity_updated', handleSync);
-    window.addEventListener('alzaydan_lead_updated', handleSync);
-    window.addEventListener('alzaydan_order_updated', handleSync);
-    return () => {
-      window.removeEventListener('storage', handleSync);
-      window.removeEventListener('alzaydan_customer_updated', handleSync);
-      window.removeEventListener('alzaydan_quotation_updated', handleSync);
-      window.removeEventListener('alzaydan_opportunity_updated', handleSync);
-      window.removeEventListener('alzaydan_lead_updated', handleSync);
-      window.removeEventListener('alzaydan_order_updated', handleSync);
-    };
-  }, []);
 
   // Full Add Order Form State (Matching Reference Image 3 with user adjustments)
   const [addOrderForm, setAddOrderForm] = useState({
