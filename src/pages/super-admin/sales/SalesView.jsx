@@ -24,18 +24,34 @@ export default function SalesView({
   activeSubTab = 'Opportunity',
   setActiveSubTab
 }) {
-  // Subtab counts
+  // Subtab counts synced with live localStorage and deletions
+  const [syncTick, setSyncTick] = React.useState(0);
+  React.useEffect(() => {
+    const handleSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener('alzaydan_sales_sync', handleSync);
+    window.addEventListener('alzaydan_quotation_updated', handleSync);
+    return () => {
+      window.removeEventListener('alzaydan_sales_sync', handleSync);
+      window.removeEventListener('alzaydan_quotation_updated', handleSync);
+    };
+  }, []);
+
+  const getLiveCount = (key, fallbackDef = 0) => {
+    try {
+      const saved = localStorage.getItem(key);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.length;
+      }
+    } catch {}
+    return fallbackDef;
+  };
+
   const countOpp = opportunities.length;
-  const countCommercialOffers = transactions.filter(
-    (t) => t.type === 'Commercial Offers' || t.type === 'Quotation'
-  ).length;
-  const countSalesOrders = transactions.filter(
-    (t) => t.type === 'Sales Order' || t.type === 'Order'
-  ).length;
-  const countTaxInvoices = transactions.filter(
-    (t) => t.type === 'Tax Invoice' || t.type === 'Invoice'
-  ).length;
-  const countReceipts = transactions.filter((t) => t.type === 'Receipt').length;
+  const countCommercialOffers = getLiveCount('alzaydan_crm_quotations', 1);
+  const countSalesOrders = getLiveCount('alzaydan_crm_orders', 0);
+  const countTaxInvoices = getLiveCount('alzaydan_crm_invoices', 1);
+  const countReceipts = getLiveCount('alzaydan_crm_receipts', 1);
 
   const salesTabs = [
     { id: 'Opportunity', label: 'Opportunity', count: countOpp, icon: KeyRound },

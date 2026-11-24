@@ -163,10 +163,11 @@ export default function SuperAdminDashboard({
   const [opportunities, setOpportunities] = useState(() => {
     try {
       const saved = localStorage.getItem('alzaydan_crm_opportunities');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed.map(normalizeOpportunity).filter(Boolean);
+        if (Array.isArray(parsed)) {
+          const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+          return parsed.filter((o) => !deleted.includes(o.id) && !deleted.includes(o.code)).map(normalizeOpportunity).filter(Boolean);
         }
       }
     } catch {}
@@ -228,11 +229,25 @@ export default function SuperAdminDashboard({
         }
       } catch {}
     };
+    const handleSalesSync = () => {
+      try {
+        const saved = localStorage.getItem('alzaydan_crm_opportunities');
+        if (saved !== null) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+            setOpportunities(parsed.filter((o) => !deleted.includes(o.id) && !deleted.includes(o.code)).map(normalizeOpportunity).filter(Boolean));
+          }
+        }
+      } catch {}
+    };
     window.addEventListener('alzaydan_lead_updated', handleLeadSync);
     window.addEventListener('alzaydan_customer_updated', handleCustSync);
+    window.addEventListener('alzaydan_sales_sync', handleSalesSync);
     return () => {
       window.removeEventListener('alzaydan_lead_updated', handleLeadSync);
       window.removeEventListener('alzaydan_customer_updated', handleCustSync);
+      window.removeEventListener('alzaydan_sales_sync', handleSalesSync);
     };
   }, []);
 

@@ -160,55 +160,64 @@ export default function TaxInvoiceView({
   // Combined quotations from localStorage and defaults (including SHAHEER CTSQ#4340 / TAP)
   const availableQuotations = useMemo(() => {
     let list = [];
+    const deletedQuots = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_quot_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_quotations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) list = parsed;
+        if (Array.isArray(parsed)) list = parsed.filter((q) => !deletedQuots.includes(q.id) && !deletedQuots.includes(q.quotationNo));
       }
     } catch {}
 
     const map = new Map();
-    map.set('CTSQ#4340', {
-      id: 4340,
-      quotationNo: 'CTSQ#4340',
-      quotationNumber: 'CTSQ#4340',
-      opportunityCode: 'CTEQ#7539',
-      opportunity: 'tap',
-      customer: 'hai',
-      customerName: 'hai',
-      owner: 'muhammed shibil',
-      date: '16-11-2026',
-      amount: '5250.00',
-      rawAmount: 5250.0,
-      vat: '262.50',
-      total: '5512.50',
-      contactPerson: 'Procurement Department',
-      pointOfContact: 'Procurement Department',
-      mobile: '+971 58 123 4567',
-      location: 'Dubai / UAE',
-      reference: 'CTSQ#4340',
-      products: [
-        {
-          id: 1,
-          itemName: 'tap',
-          itemCode: 'sd44',
-          brand: 'll',
-          quantity: 1,
-          price: 2000,
-          total: 2000
-        },
-        {
-          id: 2,
-          itemName: 'glue',
-          itemCode: 'fufu44',
-          brand: 'lp',
-          quantity: 1,
-          price: 3000,
-          total: 3000
-        }
-      ]
-    });
+    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(4340) && list.length === 0 && localStorage.getItem('alzaydan_crm_quotations') === null) {
+      map.set('CTSQ#4340', {
+        id: 4340,
+        quotationNo: 'CTSQ#4340',
+        quotationNumber: 'CTSQ#4340',
+        opportunityCode: 'CTEQ#7539',
+        opportunity: 'tap',
+        customer: 'hai',
+        customerName: 'hai',
+        owner: 'muhammed shibil',
+        date: '16-11-2026',
+        amount: '5250.00',
+        rawAmount: 5250.0,
+        vat: '262.50',
+        total: '5512.50',
+        contactPerson: 'Procurement Department',
+        pointOfContact: 'Procurement Department',
+        mobile: '+971 58 123 4567',
+        location: 'Dubai / UAE',
+        reference: 'CTSQ#4340',
+        products: [
+          {
+            id: 1,
+            itemName: 'tap',
+            itemCode: 'sd44',
+            brand: 'll',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
+          }
+        ]
+      });
+    }
 
     list.forEach((rawQ) => {
       let q = rawQ;
@@ -241,60 +250,69 @@ export default function TaxInvoiceView({
   // Combined orders from localStorage and defaults (including hai CTSO#3954 / tap)
   const availableOrders = useMemo(() => {
     let list = [];
+    const deletedOrders = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_order_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_orders');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) list = parsed;
+        if (Array.isArray(parsed)) list = parsed.filter((o) => !deletedOrders.includes(o.id) && !deletedOrders.includes(o.orderNo));
       }
     } catch {}
 
     const map = new Map();
-    map.set('CTSO#3954', {
-      id: 3954,
-      orderNo: 'CTSO#3954',
-      orderNumber: 'CTSO#3954',
-      opportunity: 'tap',
-      opportunityCode: 'CTEQ#7539',
-      commercialOfferNumber: 'CTSQ#4340',
-      customer: 'hai',
-      customerName: 'hai',
-      owner: 'muhammed shibil',
-      orderDate: '16-11-2026',
-      lpoDate: '16-11-2026',
-      lpoNumber: 'LPO-2026-9871',
-      amount: '5250.00',
-      rawAmount: 5250.0,
-      rawTotal: 5250.0,
-      vat: '262.50',
-      total: '5512.50',
-      contactPerson: 'Procurement Department',
-      pointOfContact: 'Procurement Department',
-      mobile: '+971 58 123 4567',
-      location: 'Dubai / UAE',
-      reference: 'CTSO#3954',
-      orderTitle: 'Order for hai (tap)',
-      products: [
-        {
-          id: 1,
-          itemName: 'tap',
-          itemCode: 'sd44',
-          brand: 'll',
-          quantity: 1,
-          price: 2000,
-          total: 2000
-        },
-        {
-          id: 2,
-          itemName: 'glue',
-          itemCode: 'fufu44',
-          brand: 'lp',
-          quantity: 1,
-          price: 3000,
-          total: 3000
-        }
-      ]
-    });
+    if (!deletedOrders.includes('CTSO#3954') && !deletedOrders.includes(3954) && list.length === 0 && localStorage.getItem('alzaydan_crm_orders') === null) {
+      map.set('CTSO#3954', {
+        id: 3954,
+        orderNo: 'CTSO#3954',
+        orderNumber: 'CTSO#3954',
+        opportunity: 'tap',
+        opportunityCode: 'CTEQ#7539',
+        commercialOfferNumber: 'CTSQ#4340',
+        customer: 'hai',
+        customerName: 'hai',
+        owner: 'muhammed shibil',
+        orderDate: '16-11-2026',
+        lpoDate: '16-11-2026',
+        lpoNumber: 'LPO-2026-9871',
+        amount: '5250.00',
+        rawAmount: 5250.0,
+        rawTotal: 5250.0,
+        vat: '262.50',
+        total: '5512.50',
+        contactPerson: 'Procurement Department',
+        pointOfContact: 'Procurement Department',
+        mobile: '+971 58 123 4567',
+        location: 'Dubai / UAE',
+        reference: 'CTSO#3954',
+        orderTitle: 'Order for hai (tap)',
+        products: [
+          {
+            id: 1,
+            itemName: 'tap',
+            itemCode: 'sd44',
+            brand: 'll',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
+          }
+        ]
+      });
+    }
 
     list.forEach((o) => {
       const key = o.orderNo || o.orderNumber || String(o.id);
@@ -387,15 +405,27 @@ export default function TaxInvoiceView({
     return list;
   }, [availableOrders, availableQuotations, availableOpportunities]);
 
-  // Live Tax Invoices (Safely initialized, preserving existing data)
+  // Live Tax Invoices (Safely initialized, preserving existing data and deletions)
   const [invoices, setInvoices] = useState(() => {
+    const deleted = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_inv_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_invoices');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((i) => !deleted.includes(i.id) && !deleted.includes(i.invoiceNo));
+        }
       }
     } catch {}
+    if (deleted.includes('CTINV#15259') || deleted.includes(1)) {
+      return [];
+    }
     return [
       {
         id: 1,
@@ -436,11 +466,10 @@ export default function TaxInvoiceView({
   });
 
   useEffect(() => {
-    if (invoices.length > 0) {
-      try {
-        localStorage.setItem('alzaydan_crm_invoices', JSON.stringify(invoices));
-      } catch {}
-    }
+    try {
+      localStorage.setItem('alzaydan_crm_invoices', JSON.stringify(invoices));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
   }, [invoices]);
 
   // Full Add Invoice Form State (Matching Reference Image 3 + Inherited Products)
@@ -968,8 +997,17 @@ export default function TaxInvoiceView({
   };
 
   const handleDelete = (id, no) => {
-    setInvoices((prev) => prev.filter((i) => i.id !== id));
-    toast.success(`Invoice ${no} deleted.`);
+    const updated = invoices.filter((i) => i.id !== id && i.invoiceNo !== no);
+    setInvoices(updated);
+    try {
+      localStorage.setItem('alzaydan_crm_invoices', JSON.stringify(updated));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_inv_ids') || '[]');
+      if (id && !deleted.includes(id)) deleted.push(id);
+      if (no && !deleted.includes(no)) deleted.push(no);
+      localStorage.setItem('alzaydan_deleted_inv_ids', JSON.stringify(deleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
+    toast.success(`Invoice ${no || ''} deleted.`);
   };
 
   return (

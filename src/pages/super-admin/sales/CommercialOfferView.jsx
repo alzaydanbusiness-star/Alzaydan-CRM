@@ -140,55 +140,28 @@ export default function CommercialOfferView({
     return list;
   }, [opportunities]);
 
-  // Live Quotations Records (Safely initialized, deduplicated, preserving existing data)
+  // Live Quotations Records (Safely initialized, deduplicated, preserving existing data and deletions)
   const [quotations, setQuotations] = useState(() => {
+    const deleted = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_quot_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_quotations');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const synced = parsed.map((q) => {
-            if ((q.opportunity || '').toLowerCase() === 'tap' || q.quotationNo === 'CTSQ#4340') {
-              return {
-                ...q,
-                opportunity: 'tap',
-                opportunityCode: q.opportunityCode || 'CTEQ#7539',
-                customer: 'hai',
-                owner: q.owner === 'shemin' ? 'muhammed shibil' : (q.owner || 'muhammed shibil'),
-                rawAmount: 5250.0,
-                amount: 'AED 5,250.00',
-                vat: 'AED 262.50',
-                total: 'AED 5,512.50',
-                products: [
-                  {
-                    id: 1,
-                    itemName: 'tap',
-                    itemCode: 'sd44',
-                    brand: 'll',
-                    quantity: 1,
-                    price: 2000,
-                    total: 2000
-                  },
-                  {
-                    id: 2,
-                    itemName: 'glue',
-                    itemCode: 'fufu44',
-                    brand: 'lp',
-                    quantity: 1,
-                    price: 3000,
-                    total: 3000
-                  }
-                ]
-              };
-            }
-            return q;
-          });
-          const cleaned = deduplicateQuotations(synced);
-          localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(cleaned));
-          return cleaned;
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter((q) => !deleted.includes(q.id) && !deleted.includes(q.quotationNo));
+          return deduplicateQuotations(filtered);
         }
       }
     } catch {}
+    if (deleted.includes('CTSQ#4340') || deleted.includes(1)) {
+      return [];
+    }
     return [
       {
         id: 1,
@@ -204,9 +177,8 @@ export default function CommercialOfferView({
         vat: 'AED 262.50',
         total: 'AED 5,512.50',
         status: 'Pending',
-        type: 'File Upload',
+        type: 'Supply And Installation',
         bizOpp: 'New Business',
-        productService: 'Commercial Technical Services',
         products: [
           {
             id: 1,
@@ -851,8 +823,22 @@ export default function CommercialOfferView({
   };
 
   const handleDelete = (id, no) => {
-    setQuotations((prev) => prev.filter((i) => i.id !== id));
-    toast.success(`Quotation ${no} deleted.`);
+    const updated = quotations.filter((i) => i.id !== id && i.quotationNo !== no);
+    setQuotations(updated);
+    try {
+      localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(deduplicateQuotations(updated)));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_quot_ids') || '[]');
+      if (id && !deleted.includes(id)) deleted.push(id);
+      if (no && !deleted.includes(no)) deleted.push(no);
+      localStorage.setItem('alzaydan_deleted_quot_ids', JSON.stringify(deleted));
+      window.dispatchEvent(new Event('alzaydan_quotation_updated'));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
+    if (selectedOfferDetail && (selectedOfferDetail.id === id || selectedOfferDetail.quotationNo === no)) {
+      setSelectedOfferDetail(null);
+      setViewMode('list');
+    }
+    toast.success(`Quotation ${no || ''} deleted.`);
   };
 
   return (

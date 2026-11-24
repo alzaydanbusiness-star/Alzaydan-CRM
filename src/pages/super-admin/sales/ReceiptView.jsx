@@ -77,37 +77,48 @@ export default function ReceiptView({
     return names.length > 0 ? names : ['MUHAMMED RISWAN', 'Super Admin'];
   }, [availableUsers]);
 
-  // Available Invoices from localStorage (and default CTINV#15259)
+  // Available Invoices from localStorage (and default CTINV#15259 if not deleted)
   const availableInvoices = useMemo(() => {
     let list = [];
+    const deletedInvs = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_inv_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_invoices');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) list = parsed;
+        if (Array.isArray(parsed)) {
+          list = parsed.filter((i) => !deletedInvs.includes(i.id) && !deletedInvs.includes(i.invoiceNo));
+        }
       }
     } catch {}
 
     const map = new Map();
-    map.set('CTINV#15259', {
-      invoiceNo: 'CTINV#15259',
-      customer: 'Shaheer',
-      amount: 'AED 2,100.00',
-      rawAmount: 2000.0,
-      totalAmount: 2100.0,
-      opportunityOrder: 'CTSO#3954',
-      products: [
-        {
-          id: 1,
-          itemName: 'tap',
-          itemCode: 'sk1786',
-          brand: 'lk',
-          quantity: 1,
-          price: 2000,
-          total: 2000
-        }
-      ]
-    });
+    if (!deletedInvs.includes('CTINV#15259') && !deletedInvs.includes(1) && list.length === 0 && localStorage.getItem('alzaydan_crm_invoices') === null) {
+      map.set('CTINV#15259', {
+        invoiceNo: 'CTINV#15259',
+        customer: 'Shaheer',
+        amount: 'AED 2,100.00',
+        rawAmount: 2000.0,
+        totalAmount: 2100.0,
+        opportunityOrder: 'CTSO#3954',
+        products: [
+          {
+            id: 1,
+            itemName: 'tap',
+            itemCode: 'sk1786',
+            brand: 'lk',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          }
+        ]
+      });
+    }
 
     list.forEach((inv) => {
       const key = inv.invoiceNo || String(inv.id);
@@ -191,15 +202,27 @@ export default function ReceiptView({
     return list;
   }, [customers, availableInvoices, availableOrders, availableQuotations, availableOpportunities]);
 
-  // Live Receipts with persistence
+  // Live Receipts with persistence and deletion tracking
   const [receipts, setReceipts] = useState(() => {
+    const deleted = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_receipt_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_receipts');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((r) => !deleted.includes(r.id) && !deleted.includes(r.receiptNo));
+        }
       }
     } catch {}
+    if (deleted.includes('CTRV#1235') || deleted.includes(1)) {
+      return [];
+    }
     return [
       {
         id: 1,
@@ -232,11 +255,10 @@ export default function ReceiptView({
   });
 
   useEffect(() => {
-    if (receipts.length > 0) {
-      try {
-        localStorage.setItem('alzaydan_crm_receipts', JSON.stringify(receipts));
-      } catch {}
-    }
+    try {
+      localStorage.setItem('alzaydan_crm_receipts', JSON.stringify(receipts));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
   }, [receipts]);
 
   // Full Add Receipt Form State (Cleaned - NO Terms & Conditions)
@@ -497,8 +519,17 @@ export default function ReceiptView({
     setViewMode('create');
   };
 
-  const handleDeleteReceipt = (id) => {
-    setReceipts(receipts.filter((r) => r.id !== id));
+  const handleDeleteReceipt = (id, no) => {
+    const updated = receipts.filter((r) => r.id !== id && r.receiptNo !== no && r.receiptNo !== id);
+    setReceipts(updated);
+    try {
+      localStorage.setItem('alzaydan_crm_receipts', JSON.stringify(updated));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_receipt_ids') || '[]');
+      if (id && !deleted.includes(id)) deleted.push(id);
+      if (no && !deleted.includes(no)) deleted.push(no);
+      localStorage.setItem('alzaydan_deleted_receipt_ids', JSON.stringify(deleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
     toast.success('Receipt deleted from ledger');
   };
 
@@ -1159,7 +1190,7 @@ export default function ReceiptView({
                                   type="button"
                                   onClick={() => {
                                     setActiveActionId(null);
-                                    handleDeleteReceipt(rec.id);
+                                    handleDeleteReceipt(rec.id, rec.receiptNo);
                                   }}
                                   className="w-full text-left px-3.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer font-medium"
                                 >

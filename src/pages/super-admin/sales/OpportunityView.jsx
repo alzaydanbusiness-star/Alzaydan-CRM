@@ -610,29 +610,39 @@ export default function OpportunityView({
     campaign: ''
   });
 
-  // Live Opportunities Data (Safely initialized from props or storage, preserving existing user data)
+  // Live Opportunities Data (Safely initialized from props or storage, preserving existing user data and deletions)
   const [opportunities, setOpportunities] = useState(() => {
-    let raw = [];
-    if (Array.isArray(propOpportunities) && propOpportunities.length > 0) {
-      raw = propOpportunities;
-    } else {
+    let raw = null;
+    const deleted = (() => {
       try {
-        const saved = localStorage.getItem('alzaydan_crm_opportunities');
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) raw = parsed;
-        }
-      } catch { }
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
+    try {
+      const saved = localStorage.getItem('alzaydan_crm_opportunities');
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) raw = parsed;
+      }
+    } catch { }
+
+    if (raw === null && Array.isArray(propOpportunities) && propOpportunities.length > 0) {
+      raw = propOpportunities;
     }
-    return raw.map(normalizeOpportunity).filter(Boolean);
+
+    if (raw !== null) {
+      return raw.filter((o) => !deleted.includes(o.id) && !deleted.includes(o.code)).map(normalizeOpportunity).filter(Boolean);
+    }
+    return [];
   });
 
   useEffect(() => {
-    if (opportunities.length > 0) {
-      try {
-        localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(opportunities));
-      } catch { }
-    }
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(opportunities));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch { }
     if (typeof propSetOpportunities === 'function') {
       propSetOpportunities(opportunities);
     }
@@ -1202,9 +1212,26 @@ export default function OpportunityView({
   };
 
   const handleDelete = (id, name) => {
-    setOpportunities((prev) => prev.filter((i) => i.id !== id));
+    const updated = opportunities.filter((i) => i.id !== id && i.code !== id && i.name !== name);
+    setOpportunities(updated);
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updated));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      if (id && !deleted.includes(id)) deleted.push(id);
+      const targetOpp = opportunities.find((i) => i.id === id);
+      if (targetOpp?.code && !deleted.includes(targetOpp.code)) deleted.push(targetOpp.code);
+      localStorage.setItem('alzaydan_deleted_opp_ids', JSON.stringify(deleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
+    if (typeof propSetOpportunities === 'function') {
+      propSetOpportunities(updated);
+    }
     setActiveActionId(null);
-    toast.success(`Opportunity "${name}" deleted.`);
+    if (viewTargetOpp && (viewTargetOpp.id === id || viewTargetOpp.code === id)) {
+      setViewTargetOpp(null);
+      setViewMode('list');
+    }
+    toast.success(`Opportunity "${name || ''}" deleted.`);
   };
 
   return (

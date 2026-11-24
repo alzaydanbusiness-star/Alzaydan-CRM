@@ -132,47 +132,56 @@ export default function SalesOrderView({
   // Combined opportunities from props and localStorage
   const availableOpportunities = useMemo(() => {
     let savedList = [];
+    const deletedOpps = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_opportunities');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
-          savedList = parsed;
+          savedList = parsed.filter((o) => !deletedOpps.includes(o.id) && !deletedOpps.includes(o.code));
         }
       }
     } catch {}
 
     const map = new Map();
-    // Default system opportunity matching CTEQ#7539 / tap / hai
-    map.set('CTEQ#7539', {
-      id: 7539,
-      code: 'CTEQ#7539',
-      name: 'tap',
-      customer: 'hai',
-      owner: 'muhammed shibil',
-      amount: 'AED 5,250.00',
-      rawAmount: 5250.0,
-      products: [
-        {
-          id: 1,
-          itemName: 'tap',
-          itemCode: 'sd44',
-          brand: 'll',
-          quantity: 1,
-          price: 2000,
-          total: 2000
-        },
-        {
-          id: 2,
-          itemName: 'glue',
-          itemCode: 'fufu44',
-          brand: 'lp',
-          quantity: 1,
-          price: 3000,
-          total: 3000
-        }
-      ]
-    });
+    // Default system opportunity matching CTEQ#7539 / tap / hai (only if not deleted)
+    if (!deletedOpps.includes('CTEQ#7539') && !deletedOpps.includes(7539) && savedList.length === 0 && localStorage.getItem('alzaydan_crm_opportunities') === null) {
+      map.set('CTEQ#7539', {
+        id: 7539,
+        code: 'CTEQ#7539',
+        name: 'tap',
+        customer: 'hai',
+        owner: 'muhammed shibil',
+        amount: 'AED 5,250.00',
+        rawAmount: 5250.0,
+        products: [
+          {
+            id: 1,
+            itemName: 'tap',
+            itemCode: 'sd44',
+            brand: 'll',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
+          }
+        ]
+      });
+    }
 
     if (Array.isArray(opportunities)) {
       opportunities.forEach((o) => {
@@ -188,24 +197,25 @@ export default function SalesOrderView({
     return Array.from(map.values());
   }, [opportunities, syncTick]);
 
-  // Live Sales Order Data Store (Safely initialized, preserving existing data)
+  // Live Sales Order Data Store (Safely initialized, preserving existing data and deletion status)
   const [orders, setOrders] = useState(() => {
     try {
       const saved = localStorage.getItem('alzaydan_crm_orders');
-      if (saved) {
+      if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_order_ids') || '[]');
+          return parsed.filter((o) => !deleted.includes(o.id) && !deleted.includes(o.orderNo));
+        }
       }
     } catch {}
     return [];
   });
 
   useEffect(() => {
-    if (orders.length > 0) {
-      try {
-        localStorage.setItem('alzaydan_crm_orders', JSON.stringify(orders));
-      } catch {}
-    }
+    try {
+      localStorage.setItem('alzaydan_crm_orders', JSON.stringify(orders));
+    } catch {}
   }, [orders]);
 
   // Full Add Order Form State (Matching Reference Image 3 with user adjustments)
@@ -249,62 +259,71 @@ export default function SalesOrderView({
   // Live Quotations with default fallback (CTSQ#4340 matching hai)
   const availableQuotations = useMemo(() => {
     let savedList = [];
+    const deletedQuots = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('alzaydan_deleted_quot_ids') || '[]');
+      } catch {
+        return [];
+      }
+    })();
     try {
       const saved = localStorage.getItem('alzaydan_crm_quotations');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          savedList = parsed;
+        if (Array.isArray(parsed)) {
+          savedList = parsed.filter((q) => !deletedQuots.includes(q.id) && !deletedQuots.includes(q.quotationNo));
         }
       }
     } catch {}
 
     const map = new Map();
-    // Default CTSQ#4340 quotation matching opportunity CTEQ#7539 / tap / hai
-    map.set('ctsq#4340', {
-      id: 1,
-      quotationNo: 'CTSQ#4340',
-      opportunityCode: 'CTEQ#7539',
-      owner: 'muhammed shibil',
-      ownerAvatarBg: 'bg-[#011635] text-white',
-      date: '16-11-2026',
-      opportunity: 'tap',
-      customer: 'hai',
-      rawAmount: 5250.0,
-      amount: 'AED 5,250.00',
-      vat: 'AED 262.50',
-      total: 'AED 5,512.50',
-      status: 'Pending',
-      type: 'Supply And Installation',
-      bizOpp: 'New Business',
-      contactPerson: 'Procurement Department',
-      pointOfContact: 'Procurement Department',
-      leadNumber: 'CTEQ#7539',
-      location: 'Dubai / UAE',
-      deliveryMethod: 'Site Delivery UAE',
-      source: 'Direct Inbound',
-      sourceName: 'Commercial Quotation CTSQ#4340',
-      products: [
-        {
-          id: 1,
-          itemName: 'tap',
-          itemCode: 'sd44',
-          brand: 'll',
-          quantity: 1,
-          price: 2000,
-          total: 2000
-        },
-        {
-          id: 2,
-          itemName: 'glue',
-          itemCode: 'fufu44',
-          brand: 'lp',
-          quantity: 1,
-          price: 3000,
-          total: 3000
-        }
-      ]
-    });
+    // Default CTSQ#4340 quotation matching opportunity CTEQ#7539 / tap / hai (only if not deleted)
+    if (!deletedQuots.includes('CTSQ#4340') && !deletedQuots.includes(1) && savedList.length === 0 && localStorage.getItem('alzaydan_crm_quotations') === null) {
+      map.set('ctsq#4340', {
+        id: 1,
+        quotationNo: 'CTSQ#4340',
+        opportunityCode: 'CTEQ#7539',
+        owner: 'muhammed shibil',
+        ownerAvatarBg: 'bg-[#011635] text-white',
+        date: '16-11-2026',
+        opportunity: 'tap',
+        customer: 'hai',
+        rawAmount: 5250.0,
+        amount: 'AED 5,250.00',
+        vat: 'AED 262.50',
+        total: 'AED 5,512.50',
+        status: 'Pending',
+        type: 'Supply And Installation',
+        bizOpp: 'New Business',
+        contactPerson: 'Procurement Department',
+        pointOfContact: 'Procurement Department',
+        leadNumber: 'CTEQ#7539',
+        location: 'Dubai / UAE',
+        deliveryMethod: 'Site Delivery UAE',
+        source: 'Direct Inbound',
+        sourceName: 'Commercial Quotation CTSQ#4340',
+        products: [
+          {
+            id: 1,
+            itemName: 'tap',
+            itemCode: 'sd44',
+            brand: 'll',
+            quantity: 1,
+            price: 2000,
+            total: 2000
+          },
+          {
+            id: 2,
+            itemName: 'glue',
+            itemCode: 'fufu44',
+            brand: 'lp',
+            quantity: 1,
+            price: 3000,
+            total: 3000
+          }
+        ]
+      });
+    }
 
     savedList.forEach((rawQ) => {
       let q = rawQ;
@@ -1236,12 +1255,21 @@ export default function SalesOrderView({
   };
 
   const handleDelete = (id, no) => {
-    setOrders((prev) => prev.filter((i) => i.id !== id));
-    if (selectedOrderDetail && selectedOrderDetail.id === id) {
+    const updated = orders.filter((i) => i.id !== id && i.orderNo !== no);
+    setOrders(updated);
+    try {
+      localStorage.setItem('alzaydan_crm_orders', JSON.stringify(updated));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_order_ids') || '[]');
+      if (id && !deleted.includes(id)) deleted.push(id);
+      if (no && !deleted.includes(no)) deleted.push(no);
+      localStorage.setItem('alzaydan_deleted_order_ids', JSON.stringify(deleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
+    if (selectedOrderDetail && (selectedOrderDetail.id === id || selectedOrderDetail.orderNo === no)) {
       setSelectedOrderDetail(null);
       setViewMode('list');
     }
-    toast.success(`Sales order ${no} deleted.`);
+    toast.success(`Sales order ${no || ''} deleted.`);
   };
 
   return (
@@ -2066,7 +2094,7 @@ export default function SalesOrderView({
                   />
                 </div>
 
-                {/* 4. Order Number * & Quotation Number (Side-by-Side) */}
+                {/* 4. Order Number * & Quotation Number (Side-by-Side as Requested) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -2127,65 +2155,6 @@ export default function SalesOrderView({
                           </option>
                         );
                       })}
-                    </select>
-                  </div>
-                </div>
-
-                {/* 5. Opportunity Number & Lead Number (Side-by-Side with Auto-fill) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                  <div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <label className="text-xs font-semibold text-slate-700 truncate">
-                        Opportunity Number
-                      </label>
-                      <span className="text-[10px] text-blue-600 font-medium">Auto-fills form</span>
-                    </div>
-                    <select
-                      value={addOrderForm.opportunityNumber || ''}
-                      onChange={(e) => handleOpportunitySelectInOrder(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
-                    >
-                      <option value="">Select Opportunity (Optional)</option>
-                      {addOrderForm.opportunityNumber &&
-                        !availableOpportunities.some(
-                          (o) => (o.code || o.oppCode || String(o.id)) === addOrderForm.opportunityNumber
-                        ) && (
-                          <option value={addOrderForm.opportunityNumber}>
-                            {addOrderForm.opportunityNumber}
-                          </option>
-                        )}
-                      {availableOpportunities.map((o) => {
-                        const oppCode = o.code || o.oppCode || o.opportunityCode || `OPP-${o.id}`;
-                        const oppTitle = o.name || o.opportunity || '';
-                        const oppCust = o.customer || o.customerName || '';
-                        return (
-                          <option key={`opp-opt-${o.id || oppCode}`} value={oppCode}>
-                            {oppCode}{oppCust ? ` - ${oppCust}` : ''}{oppTitle ? ` (${oppTitle})` : ''}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Lead Number
-                    </label>
-                    <select
-                      value={addOrderForm.leadNumber}
-                      onChange={(e) => handleLeadSelectInOrder(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
-                    >
-                      <option value="">Select Lead (Optional)</option>
-                      {addOrderForm.leadNumber &&
-                        !availableLeads.some((l) => l.leadCode === addOrderForm.leadNumber) && (
-                          <option value={addOrderForm.leadNumber}>{addOrderForm.leadNumber}</option>
-                        )}
-                      {availableLeads.map((l) => (
-                        <option key={`order-lead-${l.id || l.leadCode}`} value={l.leadCode}>
-                          {l.leadCode} - {l.company || l.customerName || l.name}
-                        </option>
-                      ))}
                     </select>
                   </div>
                 </div>
