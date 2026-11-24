@@ -147,7 +147,7 @@ export default function CreateSalesModal({
             <div className="flex flex-wrap gap-1.5">
               {[
                 { type: 'Opportunity', label: 'Opportunity' },
-                { type: 'Commercial Offers', label: 'Commercial Offer' },
+                { type: 'Quotation', label: 'Quotation' },
                 { type: 'Sales Order', label: 'Sales Order' },
                 { type: 'Tax Invoice', label: 'Tax Invoice' },
                 { type: 'Receipt', label: 'Receipt' }

@@ -2266,7 +2266,7 @@ export default function OpportunityView({
               { id: 'Customer', label: 'Customer', icon: User },
               { id: 'Contact Details', label: 'Contact Details', icon: UserCheck },
               { id: 'Cost Details', label: '$ Cost Details / Jobs', icon: null },
-              { id: 'Commercial Offer', label: 'Commercial Offer', icon: FileText },
+              { id: 'Quotation', label: 'Quotation', icon: FileText },
               { id: 'Proforma Invoice', label: 'Proforma Invoice', icon: FileText },
               { id: 'Invoice', label: 'Invoice', icon: FileText },
               { id: 'Purchase', label: 'Purchase', icon: ShoppingCart },

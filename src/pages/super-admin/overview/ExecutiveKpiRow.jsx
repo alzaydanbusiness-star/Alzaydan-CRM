@@ -34,7 +34,7 @@ export default function ExecutiveKpiRow({
     },
     {
       id: 'offers',
-      label: 'OPEN COMMERCIAL OFFERS',
+      label: 'OPEN QUOTATIONS',
       value: openOffers,
       badgeText: 'In Proposal Phase',
       badgeColor: 'text-blue-700 bg-blue-50/80 border-blue-200/80',

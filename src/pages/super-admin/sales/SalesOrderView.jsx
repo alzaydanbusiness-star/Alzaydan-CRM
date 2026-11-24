@@ -166,7 +166,7 @@ export default function SalesOrderView({
     });
 
     return Array.from(map.values());
-  }, [opportunities]);
+  }, [opportunities, syncTick]);
 
   // Live Sales Order Data Store (Safely initialized, preserving existing data)
   const [orders, setOrders] = useState(() => {
@@ -232,6 +232,7 @@ export default function SalesOrderView({
     pointOfContact: '',
     sourceName: '',
     orderNumber: 'CTSO#3954',
+    opportunityNumber: '',
     commercialOfferNumber: 'None (Direct Order)',
     leadNumber: '',
     discount: '0.00',
@@ -488,6 +489,108 @@ export default function SalesOrderView({
     return list;
   }, [addOrderForm?.customerName, addOrderForm?.pointOfContact, addOrderForm?.contactPerson, allCustomers, availableLeads, availableOpportunities, availableQuotations]);
 
+  const handleOpportunitySelectInOrder = (oppCodeVal) => {
+    if (!oppCodeVal) {
+      setAddOrderForm((prev) => ({ ...prev, opportunityNumber: '' }));
+      return;
+    }
+
+    const cleanVal = String(oppCodeVal || '').trim().toLowerCase();
+    const matchedOpp = availableOpportunities.find((o) => {
+      const code = String(o.code || o.oppCode || o.opportunityCode || o.id || '').trim().toLowerCase();
+      const name = String(o.name || o.opportunity || '').trim().toLowerCase();
+      return code === cleanVal || name === cleanVal || (code && cleanVal.includes(code));
+    });
+
+    if (matchedOpp) {
+      const custName = (matchedOpp.customer || matchedOpp.customerName || matchedOpp.client || '').trim();
+      const oppCode = matchedOpp.code || matchedOpp.oppCode || matchedOpp.opportunityCode || oppCodeVal;
+      const oppName = matchedOpp.name || matchedOpp.opportunity || 'Supply';
+
+      // Find linked quotation
+      const linkedQuot = availableQuotations.find((q) => {
+        const qOppCode = String(q.opportunityCode || '').toLowerCase();
+        const qOpp = String(q.opportunity || '').toLowerCase();
+        return (
+          (oppCode && qOppCode === oppCode.toLowerCase()) ||
+          (oppName && qOpp === oppName.toLowerCase()) ||
+          (custName && q.customer && q.customer.toLowerCase() === custName.toLowerCase())
+        );
+      });
+
+      // Find linked lead
+      const matchedLead = availableLeads.find((l) => {
+        const leadRef = matchedOpp.leadCode || matchedOpp.leadNumber;
+        return (
+          (leadRef && (l.leadCode === leadRef || String(l.id) === String(leadRef))) ||
+          (custName && (
+            (l.customerName && l.customerName.toLowerCase() === custName.toLowerCase()) ||
+            (l.company && l.company.toLowerCase() === custName.toLowerCase()) ||
+            (l.name && l.name.toLowerCase() === custName.toLowerCase())
+          ))
+        );
+      });
+
+      // Contact Person / Point of Contact
+      const resolvedContact =
+        matchedOpp.contactPerson ||
+        matchedOpp.pointOfContact ||
+        matchedOpp.attention ||
+        linkedQuot?.pointOfContact ||
+        linkedQuot?.contactPerson ||
+        matchedLead?.contactName ||
+        'Procurement Department';
+
+      // Resolve amounts
+      const rawNum = matchedOpp.rawAmount
+        ? String(matchedOpp.rawAmount)
+        : matchedOpp.amount
+        ? String(parseFloat(String(matchedOpp.amount).replace(/[^0-9.]/g, '')) || '0.00')
+        : '0.00';
+
+      const finalAmountStr = Number(rawNum) > 0
+        ? Number(rawNum).toFixed(2)
+        : (linkedQuot?.rawAmount ? String(linkedQuot.rawAmount) : '0.00');
+
+      // Products
+      const oppProducts =
+        matchedOpp.products && matchedOpp.products.length > 0
+          ? matchedOpp.products
+          : linkedQuot?.products && linkedQuot.products.length > 0
+          ? linkedQuot.products
+          : [];
+
+      // Order Title
+      const orderTitle = custName ? `Order for ${custName} - ${oppName}` : `Order for ${oppName}`;
+      const selectedQuotNo = linkedQuot ? (linkedQuot.quotationNo || linkedQuot.quotationNumber) : 'None (Direct Order)';
+
+      setAddOrderForm((prev) => ({
+        ...prev,
+        opportunityNumber: oppCode,
+        commercialOfferNumber: selectedQuotNo,
+        customerName: custName || prev.customerName,
+        orderTitle: orderTitle || prev.orderTitle,
+        pointOfContact: resolvedContact,
+        contactPerson: resolvedContact,
+        leadNumber: matchedOpp.leadCode || matchedLead?.leadCode || prev.leadNumber,
+        amount: finalAmountStr !== '0.00' ? finalAmountStr : prev.amount,
+        vatType: matchedOpp.vatType || prev.vatType || 'With VAT',
+        vatRate: matchedOpp.vatRate ? String(matchedOpp.vatRate) : prev.vatRate || '5',
+        discount: matchedOpp.discount ? String(parseFloat(String(matchedOpp.discount).replace(/[^0-9.]/g, '')) || '0.00') : prev.discount,
+        orderOwner: matchedOpp.owner || prev.orderOwner,
+        businessOpportunity: matchedOpp.businessOpportunity || matchedOpp.bizOpp || prev.businessOpportunity,
+        source: matchedOpp.source || prev.source || 'Direct Inbound',
+        sourceName: matchedOpp.sourceName || (selectedQuotNo !== 'None (Direct Order)' ? `Commercial Quotation ${selectedQuotNo}` : `Opportunity ${oppCode}`),
+        products: oppProducts.length > 0 ? oppProducts : prev.products,
+        comments: matchedOpp.description || prev.comments || `Sales Order created from Opportunity ${oppCode}`
+      }));
+
+      toast.success(`Auto-filled all order details from Opportunity ${oppCode} (${custName || oppName})!`);
+    } else {
+      setAddOrderForm((prev) => ({ ...prev, opportunityNumber: oppCodeVal }));
+    }
+  };
+
   const handleCommercialOfferSelect = (offerNo) => {
     if (!offerNo || offerNo === 'None (Direct Order)') {
       setAddOrderForm((prev) => ({
@@ -628,6 +731,7 @@ export default function SalesOrderView({
 
       setAddOrderForm((prev) => ({
         ...prev,
+        opportunityNumber: linkedOpp?.code || matched.opportunityCode || prev.opportunityNumber || '',
         commercialOfferNumber: matched.quotationNo || matched.quotationNumber || offerNo,
         customerName: custName,
         orderTitle: orderTitle,
@@ -924,6 +1028,7 @@ export default function SalesOrderView({
       customerName: '',
       pointOfContact: '',
       contactPerson: '',
+      opportunityNumber: '',
       commercialOfferNumber: 'None (Direct Order)',
       leadNumber: '',
       amount: '0.00',
@@ -971,6 +1076,7 @@ export default function SalesOrderView({
       pointOfContact: item.pointOfContact || item.contactPerson || '',
       sourceName: item.sourceName || '',
       orderNumber: item.orderNo || '',
+      opportunityNumber: item.opportunityNumber || item.opportunityCode || '',
       commercialOfferNumber: item.commercialOfferNumber || 'None (Direct Order)',
       leadNumber: item.leadNumber || '',
       discount: cleanDiscount > 0 ? String(cleanDiscount) : '0.00',
@@ -1029,6 +1135,7 @@ export default function SalesOrderView({
                 pointOfContact: addOrderForm.pointOfContact,
                 contactPerson: addOrderForm.contactPerson,
                 leadNumber: addOrderForm.leadNumber,
+                opportunityNumber: addOrderForm.opportunityNumber || '',
                 commercialOfferNumber: addOrderForm.commercialOfferNumber,
                 source: addOrderForm.source,
                 sourceName: addOrderForm.sourceName,
@@ -1070,6 +1177,7 @@ export default function SalesOrderView({
       pointOfContact: addOrderForm.pointOfContact,
       contactPerson: addOrderForm.contactPerson,
       leadNumber: addOrderForm.leadNumber,
+      opportunityNumber: addOrderForm.opportunityNumber || '',
       commercialOfferNumber: addOrderForm.commercialOfferNumber,
       source: addOrderForm.source,
       sourceName: addOrderForm.sourceName,
@@ -1093,6 +1201,7 @@ export default function SalesOrderView({
       customerName: '',
       pointOfContact: '',
       contactPerson: '',
+      opportunityNumber: '',
       commercialOfferNumber: 'None (Direct Order)',
       leadNumber: '',
       amount: '0.00',
@@ -1937,7 +2046,7 @@ export default function SalesOrderView({
                   />
                 </div>
 
-                {/* 4. Order Number * & Commercial Offer Number (Side-by-Side as in Image 3) */}
+                {/* 4. Order Number * & Quotation Number (Side-by-Side) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
@@ -1965,11 +2074,11 @@ export default function SalesOrderView({
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="text-xs font-semibold text-slate-700 truncate">
-                        Commercial Offer Number
+                        Quotation Number
                       </label>
                       <button
                         type="button"
-                        onClick={() => toast.info('Add Commercial Offer link')}
+                        onClick={() => toast.info('Add Quotation link')}
                         className="text-xs font-bold text-blue-600 hover:text-blue-800 transition cursor-pointer shrink-0"
                       >
                         + New
@@ -1994,7 +2103,7 @@ export default function SalesOrderView({
                         const qNo = q.quotationNo || q.quotationNumber;
                         return (
                           <option key={`quot-opt-${q.id || qNo}`} value={qNo}>
-                            {qNo} - {q.customer || q.opportunity || 'Offer'}
+                            {qNo} - {q.customer || q.opportunity || 'Quotation'}
                           </option>
                         );
                       })}
@@ -2002,27 +2111,63 @@ export default function SalesOrderView({
                   </div>
                 </div>
 
-                {/* 5. Lead Number */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Lead Number
-                  </label>
-                  <select
-                    value={addOrderForm.leadNumber}
-                    onChange={(e) => handleLeadSelectInOrder(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
-                  >
-                    <option value="">Select Lead (Optional)</option>
-                    {addOrderForm.leadNumber &&
-                      !availableLeads.some((l) => l.leadCode === addOrderForm.leadNumber) && (
-                        <option value={addOrderForm.leadNumber}>{addOrderForm.leadNumber}</option>
-                      )}
-                    {availableLeads.map((l) => (
-                      <option key={`order-lead-${l.id || l.leadCode}`} value={l.leadCode}>
-                        {l.leadCode} - {l.company || l.customerName || l.name}
-                      </option>
-                    ))}
-                  </select>
+                {/* 5. Opportunity Number & Lead Number (Side-by-Side with Auto-fill) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-xs font-semibold text-slate-700 truncate">
+                        Opportunity Number
+                      </label>
+                      <span className="text-[10px] text-blue-600 font-medium">Auto-fills form</span>
+                    </div>
+                    <select
+                      value={addOrderForm.opportunityNumber || ''}
+                      onChange={(e) => handleOpportunitySelectInOrder(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
+                    >
+                      <option value="">Select Opportunity (Optional)</option>
+                      {addOrderForm.opportunityNumber &&
+                        !availableOpportunities.some(
+                          (o) => (o.code || o.oppCode || String(o.id)) === addOrderForm.opportunityNumber
+                        ) && (
+                          <option value={addOrderForm.opportunityNumber}>
+                            {addOrderForm.opportunityNumber}
+                          </option>
+                        )}
+                      {availableOpportunities.map((o) => {
+                        const oppCode = o.code || o.oppCode || o.opportunityCode || `OPP-${o.id}`;
+                        const oppTitle = o.name || o.opportunity || '';
+                        const oppCust = o.customer || o.customerName || '';
+                        return (
+                          <option key={`opp-opt-${o.id || oppCode}`} value={oppCode}>
+                            {oppCode}{oppCust ? ` - ${oppCust}` : ''}{oppTitle ? ` (${oppTitle})` : ''}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Lead Number
+                    </label>
+                    <select
+                      value={addOrderForm.leadNumber}
+                      onChange={(e) => handleLeadSelectInOrder(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 outline-none focus:bg-white focus:border-[#011635] cursor-pointer"
+                    >
+                      <option value="">Select Lead (Optional)</option>
+                      {addOrderForm.leadNumber &&
+                        !availableLeads.some((l) => l.leadCode === addOrderForm.leadNumber) && (
+                          <option value={addOrderForm.leadNumber}>{addOrderForm.leadNumber}</option>
+                        )}
+                      {availableLeads.map((l) => (
+                        <option key={`order-lead-${l.id || l.leadCode}`} value={l.leadCode}>
+                          {l.leadCode} - {l.company || l.customerName || l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 {/* 6. Discount */}
