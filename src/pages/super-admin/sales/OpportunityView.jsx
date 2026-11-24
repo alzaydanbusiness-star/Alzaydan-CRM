@@ -537,6 +537,29 @@ export default function OpportunityView({
     });
   };
 
+  // Helper to dynamically calculate next sequence so it never collides with deleted numbers
+  const getNextOpportunitySequence = () => {
+    let maxNum = 7539;
+    opportunities.forEach((o) => {
+      const m = String(o.code || o.opportunityNumber || '').match(/\d+/);
+      if (m) {
+        const n = parseInt(m[0], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+    try {
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      deleted.forEach((d) => {
+        const m = String(d).match(/\d+/);
+        if (m) {
+          const n = parseInt(m[0], 10);
+          if (n > maxNum) maxNum = n;
+        }
+      });
+    } catch {}
+    return `CTEQ#${maxNum + 1}`;
+  };
+
   // Open fresh Add Opportunity form
   const handleOpenAddOpportunity = () => {
     setEditingOppId(null);
@@ -560,7 +583,7 @@ export default function OpportunityView({
       type: 'New Business',
       location: '',
       reference: '',
-      opportunityNumber: `CTEQ#${7539 + opportunities.length}`,
+      opportunityNumber: getNextOpportunitySequence(),
       leadNumber: '',
       opportunityDate: '16-11-2026',
       pointOfContact: '',
@@ -961,7 +984,19 @@ export default function OpportunityView({
       status: 'Open'
     };
 
-    setOpportunities((prev) => [newOpp, ...prev]);
+    const updatedList = [newOpp, ...opportunities];
+    setOpportunities(updatedList);
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updatedList));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      const cleanDeleted = deleted.filter((d) => d !== newOpp.id && d !== newOpp.code && d !== String(newOpp.id));
+      localStorage.setItem('alzaydan_deleted_opp_ids', JSON.stringify(cleanDeleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+      window.dispatchEvent(new Event('alzaydan_opportunity_updated'));
+    } catch {}
+    if (typeof propSetOpportunities === 'function') {
+      propSetOpportunities(updatedList);
+    }
     toast.success(`Opportunity "${newOpp.name}" added successfully!`);
     setIsAddModalOpen(false);
     setFormData({
@@ -1004,9 +1039,19 @@ export default function OpportunityView({
         products: addOppForm.products || []
       });
 
-      setOpportunities((prev) =>
-        prev.map((o) => (o.id === editingOppId ? updatedOpp : o))
-      );
+      const updatedList = opportunities.map((o) => (o.id === editingOppId ? updatedOpp : o));
+      setOpportunities(updatedList);
+      try {
+        localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updatedList));
+        const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+        const cleanDeleted = deleted.filter((d) => d !== updatedOpp.id && d !== updatedOpp.code && d !== String(updatedOpp.id));
+        localStorage.setItem('alzaydan_deleted_opp_ids', JSON.stringify(cleanDeleted));
+        window.dispatchEvent(new Event('alzaydan_sales_sync'));
+        window.dispatchEvent(new Event('alzaydan_opportunity_updated'));
+      } catch {}
+      if (typeof propSetOpportunities === 'function') {
+        propSetOpportunities(updatedList);
+      }
       if (viewTargetOpp && viewTargetOpp.id === editingOppId) {
         setViewTargetOpp(updatedOpp);
       }
@@ -1017,9 +1062,10 @@ export default function OpportunityView({
     }
 
     const nextId = Date.now();
+    const oppCode = addOppForm.opportunityNumber || getNextOpportunitySequence();
     const newOpp = {
       id: nextId,
-      code: addOppForm.opportunityNumber || `CTEQ#${7539 + opportunities.length}`,
+      code: oppCode,
       owner: addOppForm.opportunityOwner,
       ownerAvatarBg: 'bg-[#011635] text-white',
       oppDate: addOppForm.opportunityDate || '16-11-2026',
@@ -1043,7 +1089,19 @@ export default function OpportunityView({
       products: addOppForm.products || []
     };
 
-    setOpportunities((prev) => [newOpp, ...prev]);
+    const updatedList = [newOpp, ...opportunities];
+    setOpportunities(updatedList);
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updatedList));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_opp_ids') || '[]');
+      const cleanDeleted = deleted.filter((d) => d !== newOpp.id && d !== newOpp.code && d !== String(newOpp.id));
+      localStorage.setItem('alzaydan_deleted_opp_ids', JSON.stringify(cleanDeleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+      window.dispatchEvent(new Event('alzaydan_opportunity_updated'));
+    } catch {}
+    if (typeof propSetOpportunities === 'function') {
+      propSetOpportunities(updatedList);
+    }
     toast.success(`Opportunity "${newOpp.name}" added successfully!`);
     setViewMode('list');
 

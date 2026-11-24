@@ -800,7 +800,16 @@ export default function CommercialOfferView({
         description: addQuotationForm.description || ''
       };
 
-      return deduplicateQuotations([newQuotation, ...prev]);
+      const updatedList = deduplicateQuotations([newQuotation, ...prev]);
+      try {
+        localStorage.setItem('alzaydan_crm_quotations', JSON.stringify(updatedList));
+        const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_quot_ids') || '[]');
+        const cleanDeleted = deleted.filter((d) => d !== newQuotation.id && d !== newQuotation.quotationNo && d !== cleanNo);
+        localStorage.setItem('alzaydan_deleted_quot_ids', JSON.stringify(cleanDeleted));
+        window.dispatchEvent(new Event('alzaydan_sales_sync'));
+        window.dispatchEvent(new Event('alzaydan_quotation_updated'));
+      } catch {}
+      return updatedList;
     });
 
     // Clear filter date range so user sees newly created proposal

@@ -473,7 +473,15 @@ export default function ReceiptView({
       products: addReceiptForm.products || []
     };
 
-    setReceipts([newReceipt, ...receipts]);
+    const updatedList = [newReceipt, ...receipts];
+    setReceipts(updatedList);
+    try {
+      localStorage.setItem('alzaydan_crm_receipts', JSON.stringify(updatedList));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_receipt_ids') || '[]');
+      const cleanDeleted = deleted.filter((d) => d !== newReceipt.id && d !== newReceipt.receiptNo);
+      localStorage.setItem('alzaydan_deleted_receipt_ids', JSON.stringify(cleanDeleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
     toast.success(`Payment Receipt "${newReceipt.receiptNo}" issued successfully!`);
     setViewMode('list');
 

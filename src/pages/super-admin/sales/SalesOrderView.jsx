@@ -1251,8 +1251,14 @@ export default function SalesOrderView({
       products: addOrderForm.products || []
     };
 
-    setOrders((prev) => [newOrder, ...prev]);
+    const updatedList = [newOrder, ...orders];
+    setOrders(updatedList);
     try {
+      localStorage.setItem('alzaydan_crm_orders', JSON.stringify(updatedList));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_order_ids') || '[]');
+      const cleanDeleted = deleted.filter((d) => d !== newOrder.id && d !== newOrder.orderNo);
+      localStorage.setItem('alzaydan_deleted_order_ids', JSON.stringify(cleanDeleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
       window.dispatchEvent(new Event('alzaydan_order_updated'));
     } catch {}
     toast.success(`Sales Order "${newOrder.orderNo}" created successfully!`);

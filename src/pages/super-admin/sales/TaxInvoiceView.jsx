@@ -940,7 +940,15 @@ export default function TaxInvoiceView({
       return;
     }
 
-    setInvoices((prev) => [newInvoice, ...prev]);
+    const updatedList = [newInvoice, ...invoices];
+    setInvoices(updatedList);
+    try {
+      localStorage.setItem('alzaydan_crm_invoices', JSON.stringify(updatedList));
+      const deleted = JSON.parse(localStorage.getItem('alzaydan_deleted_inv_ids') || '[]');
+      const cleanDeleted = deleted.filter((d) => d !== newInvoice.id && d !== newInvoice.invoiceNo);
+      localStorage.setItem('alzaydan_deleted_inv_ids', JSON.stringify(cleanDeleted));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+    } catch {}
     toast.success(`Tax Invoice "${newInvoice.invoiceNo}" generated successfully!`);
     setViewMode('list');
 
