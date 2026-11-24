@@ -50,6 +50,24 @@ export default function CommercialOfferView({
   // Mode: 'list' (Matching Reference Image 2) | 'create' (Matching Reference Image 3)
   const [viewMode, setViewMode] = useState('list');
 
+  // Reactive sync tick across window events and cross-tab/view changes
+  const [syncTick, setSyncTick] = useState(0);
+  useEffect(() => {
+    const handleSync = () => setSyncTick((t) => t + 1);
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('alzaydan_customer_updated', handleSync);
+    window.addEventListener('alzaydan_quotation_updated', handleSync);
+    window.addEventListener('alzaydan_opportunity_updated', handleSync);
+    window.addEventListener('alzaydan_lead_updated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('alzaydan_customer_updated', handleSync);
+      window.removeEventListener('alzaydan_quotation_updated', handleSync);
+      window.removeEventListener('alzaydan_opportunity_updated', handleSync);
+      window.removeEventListener('alzaydan_lead_updated', handleSync);
+    };
+  }, []);
+
   // Filter States (Default to empty date filter so all existing and new quotations are always visible)
   const [filterOwner, setFilterOwner] = useState('All Owners');
   const [filterDateRange, setFilterDateRange] = useState('');
@@ -290,7 +308,7 @@ export default function CommercialOfferView({
     });
 
     return Array.from(map.values());
-  }, [opportunities]);
+  }, [opportunities, syncTick]);
 
   const handleOpportunitySelect = (oppVal) => {
     if (!oppVal) {
@@ -316,13 +334,27 @@ export default function CommercialOfferView({
     if (matched) {
       const rawNum =
         parseFloat(String(matched.rawAmount ?? matched.amount ?? '0').replace(/[^0-9.]/g, '')) || 0;
+
+      let calcOppSum = 0;
+      if (Array.isArray(matched.products)) {
+        matched.products.forEach((p) => {
+          calcOppSum += parseFloat(String(p.total ?? (p.quantity * p.price || 0)).replace(/,/g, '')) || 0;
+        });
+      }
+      const finalAmount =
+        calcOppSum > 0
+          ? String(calcOppSum.toFixed(2))
+          : rawNum > 0
+          ? String(rawNum.toFixed(2))
+          : prev.amount;
+
       setAddQuotationForm((prev) => ({
         ...prev,
         opportunity: matched.name,
         opportunityCode: matched.code || '',
         customer: matched.customer || prev.customer || '',
         owner: matched.owner || prev.owner || 'MUHAMMED RISWAN',
-        amount: rawNum > 0 ? String(rawNum) : prev.amount,
+        amount: finalAmount,
         products: matched.products || [],
         description:
           prev.description ||
