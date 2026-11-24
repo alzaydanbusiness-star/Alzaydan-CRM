@@ -915,22 +915,20 @@ export default function TaskManager({
 
             {/* Right Action Buttons */}
             <div className="flex items-center gap-2">
-              {/* Assign Task (Dark Blue Button with SquareArrowOutUpRight matching Image 1 - Restricted to Admins, Managers & Team Leads) */}
-              {!isSalesExec && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setViewMode('assign');
-                    setSelectedTaskIds([]);
-                    setBulkAssignee('');
-                    setAssignHasLoaded(true);
-                  }}
-                  className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
-                >
-                  <SquareArrowOutUpRight className="w-3.5 h-3.5" />
-                  <span>Assign Task</span>
-                </button>
-              )}
+              {/* Assign Task (Dark Blue Button with SquareArrowOutUpRight matching Image 1 - Available to All Roles) */}
+              <button
+                type="button"
+                onClick={() => {
+                  setViewMode('assign');
+                  setSelectedTaskIds([]);
+                  setBulkAssignee('');
+                  setAssignHasLoaded(true);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+              >
+                <SquareArrowOutUpRight className="w-3.5 h-3.5" />
+                <span>Assign Task</span>
+              </button>
 
               {/* + TASK ▾ / ▴ (Emerald Green Button with Dropdown Matching Image 1) */}
               <div className="relative" ref={taskDropdownRef}>
@@ -1174,6 +1172,10 @@ export default function TaskManager({
                               <div className="absolute right-0 top-full mt-1 w-48 rounded-md border border-slate-200 bg-white py-1 shadow-xl z-50 text-left">
                                 <button type="button" onClick={() => { setSelectedTaskForAction(t); setViewMode('detail'); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">View</button>
                                 <button type="button" onClick={() => { setFormData({ title: t.title, description: t.description, assignee: t.assignee, taskUnder: t.taskUnder, taskType: t.taskType, priority: t.priority, dueDate: t.dueDate, status: t.status }); setEditingTaskId(t.id); setViewMode('edit-task'); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">Edit</button>
+                                <button type="button" onClick={() => { setSelectedTaskIds([t.id]); setViewMode('assign'); setAssignHasLoaded(true); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between">
+                                  <span>Assign / Reassign</span>
+                                  <SquareArrowOutUpRight className="w-3 h-3 text-slate-400" />
+                                </button>
                                 <button type="button" onClick={() => { setSelectedTaskForAction(t); setPostponeDate(''); setPostponeTime(''); setTaskActionDialog('postpone'); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">Postpone</button>
                                 <button type="button" onClick={() => { const due = new Date(t.dueDate); setSelectedTaskForAction(t); setStatusDraft(t.status || 'Pending'); setStatusDueDate(Number.isNaN(due.getTime()) ? '' : due.toISOString().slice(0, 10)); setStatusDueTime(Number.isNaN(due.getTime()) ? '' : due.toTimeString().slice(0, 5)); setStatusPriority(t.priority || 'Medium'); setStatusComments(''); setStatusAddNote(false); setTaskActionDialog('status'); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">Change Status</button>
                                 <button type="button" onClick={() => { handleToggleComplete(t.id); setOpenTaskMenuId(null); }} className="w-full px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50">Mark as Completed</button>

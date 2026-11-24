@@ -32,7 +32,7 @@ import {
   GitBranch
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { getStoredUsers, getLoggedInUser } from '../../../utils/userDirectory';
+import { getStoredUsers, getLoggedInUser, filterLeadsByRole, isSalesExecutive } from '../../../utils/userDirectory';
 
 const UAE_LOCATIONS = [
   'Dubai, UAE',
@@ -419,19 +419,29 @@ export default function LeadManager({
     } catch {}
   }, []);
 
-  // Combined owners from active current users
+  const isRep = useMemo(() => isSalesExecutive(activeUser), [activeUser]);
+
+  // Role-Based Accessible Leads (Filtered by Enterprise Hierarchy)
+  const accessibleLeads = useMemo(() => {
+    return filterLeadsByRole(leadList, activeUser);
+  }, [leadList, activeUser]);
+
+  // Combined owners from active current users (scoped by role for Sales Executives)
   const availableOwners = useMemo(() => {
+    if (isRep) {
+      return [activeUser?.name || 'Sales Executive'];
+    }
     const names = [];
     availableUsers.forEach((emp) => {
       if (emp.name && !names.includes(emp.name)) names.push(emp.name);
     });
     return names.length > 0 ? names : ['Super Admin'];
-  }, [availableUsers]);
+  }, [availableUsers, isRep, activeUser]);
 
   // Count duplicate leads
   const duplicateCount = useMemo(() => {
-    return leadList.filter((l) => l.isDuplicate).length;
-  }, [leadList]);
+    return accessibleLeads.filter((l) => l.isDuplicate).length;
+  }, [accessibleLeads]);
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -1038,9 +1048,9 @@ export default function LeadManager({
     toast.success(`${type} added successfully!`);
   };
 
-  // Filtered Leads calculation
+  // Filtered Leads calculation (Filtered by Role Hierarchy + UI Filters)
   const filteredLeads = useMemo(() => {
-    return leadList.filter((l) => {
+    return accessibleLeads.filter((l) => {
       if (selectedOwner !== 'all' && l.owner !== selectedOwner) return false;
       if (selectedCreatedBy !== 'all' && l.createdBy !== selectedCreatedBy) return false;
       if (selectedStatus !== 'all' && l.status !== selectedStatus) return false;
@@ -1064,7 +1074,7 @@ export default function LeadManager({
       return true;
     });
   }, [
-    leadList,
+    accessibleLeads,
     selectedOwner,
     selectedCreatedBy,
     selectedStatus,

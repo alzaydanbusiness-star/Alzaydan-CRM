@@ -26,7 +26,7 @@ import ReportManager from './reports/ReportManager';
 import UsersDirectoryView from './users/UsersDirectoryView';
 import SettingsView from './settings/SettingsView';
 import InventoryView from './inventory/InventoryView';
-import { getStoredUsers, isSalesExecutive, filterTasksByRole, canAccessSettings, canAccessReports } from '../../utils/userDirectory';
+import { getStoredUsers, isSalesExecutive, filterTasksByRole, filterLeadsByRole, canAccessSettings, canAccessReports } from '../../utils/userDirectory';
 
 export default function SuperAdminDashboard({
   initialNav = 'Dashboard',
@@ -397,7 +397,7 @@ export default function SuperAdminDashboard({
               <SummaryCards
                 onSelectMetric={(tab) => setActiveNav(tab)}
                 employeesCount={employees.length}
-                leadsCount={leads.length}
+                leadsCount={filterLeadsByRole(leads, currentUser).length}
                 customersCount={customers.length}
                 salesAmount={0}
                 opportunitiesCount={opportunities.length}
@@ -411,7 +411,7 @@ export default function SuperAdminDashboard({
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
                 <div className="lg:col-span-7">
                   <RecentLeads
-                    leads={leads}
+                    leads={filterLeadsByRole(leads, currentUser)}
                     onViewAll={() => setActiveNav('Leads')}
                   />
                 </div>

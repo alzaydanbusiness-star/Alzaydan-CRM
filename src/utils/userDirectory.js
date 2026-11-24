@@ -417,7 +417,8 @@ export function filterTasksByRole(tasks, user) {
 
   const userEmail = (u?.email || '').toLowerCase().trim();
   const userName = (u?.name || '').toLowerCase().trim();
-  const userFirstName = userName.split(' ')[0] || '';
+  const username = (u?.username || '').toLowerCase().trim();
+  const userLastName = userName.split(' ').slice(1).join(' ') || '';
 
   const isAssignedToUser = (task) => {
     const assignee = (task.assignee || '').toLowerCase().trim();
@@ -425,7 +426,8 @@ export function filterTasksByRole(tasks, user) {
     return (
       assignee === userName ||
       assignee === userEmail ||
-      (userFirstName && assignee.includes(userFirstName)) ||
+      (username && (assignee === username || assignee.includes(username))) ||
+      (userLastName && assignee.includes(userLastName)) ||
       (task.assigneeEmail && task.assigneeEmail.toLowerCase().trim() === userEmail)
     );
   };
@@ -436,7 +438,8 @@ export function filterTasksByRole(tasks, user) {
     return (
       createdBy === userName ||
       createdBy === userEmail ||
-      (userFirstName && createdBy.includes(userFirstName))
+      (username && (createdBy === username || createdBy.includes(username))) ||
+      (userLastName && createdBy.includes(userLastName))
     );
   };
 
@@ -506,4 +509,72 @@ export function canAccessReports(user) {
   if (!u) return false;
   const tier = getUserTier(u);
   return tier === 'super-admin' || tier === 'manager';
+}
+
+/**
+ * Filter leads according to organizational hierarchy rules:
+ * - Super Admin & Manager: Full enterprise visibility over 100% of leads.
+ * - Team Lead: Leads assigned to them, owned by them, or assigned to subordinate Sales Executives.
+ * - Sales Executive (Staff): STRICTLY leads assigned directly to them, owned by them, or created by them.
+ */
+export function filterLeadsByRole(leads, user) {
+  if (!Array.isArray(leads)) return [];
+  const u = user || getLoggedInUser();
+  const tier = getUserTier(u);
+
+  // 1. Super Admin & Manager: full visibility over all leads
+  if (tier === 'super-admin' || tier === 'manager') {
+    return leads;
+  }
+
+  const userEmail = (u?.email || '').toLowerCase().trim();
+  const userName = (u?.name || '').toLowerCase().trim();
+  const username = (u?.username || '').toLowerCase().trim();
+  const userLastName = userName.split(' ').slice(1).join(' ') || '';
+
+  const isAssignedOrOwnedByUser = (lead) => {
+    const assigned = (lead.assignedTo || '').toLowerCase().trim();
+    const owner = (lead.owner || '').toLowerCase().trim();
+    const creator = (lead.createdBy || '').toLowerCase().trim();
+
+    const matchesUser = (field) => {
+      if (!field) return false;
+      if (field === userName || field === userEmail) return true;
+      if (username && (field === username || field.includes(username))) return true;
+      if (userLastName && field.includes(userLastName)) return true;
+      return false;
+    };
+
+    return matchesUser(assigned) || matchesUser(owner) || matchesUser(creator);
+  };
+
+  // 2. Sales Executive (Staff): ONLY leads assigned to or owned by them
+  if (tier === 'staff') {
+    return leads.filter((l) => isAssignedOrOwnedByUser(l));
+  }
+
+  // 3. Team Lead: Leads assigned to them, owned by them, or assigned to subordinate Sales Executives
+  if (tier === 'team-lead') {
+    return leads.filter((l) => {
+      if (isAssignedOrOwnedByUser(l)) return true;
+      const assigned = (l.assignedTo || '').toLowerCase().trim();
+      const owner = (l.owner || '').toLowerCase().trim();
+      // Subordinate staff check
+      if (
+        assigned.includes('shibil') ||
+        assigned.includes('shaheer') ||
+        assigned.includes('arafath') ||
+        assigned.includes('rep') ||
+        assigned.includes('staff') ||
+        owner.includes('shibil') ||
+        owner.includes('shaheer') ||
+        owner.includes('arafath')
+      ) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  return leads;
 }
