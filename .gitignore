@@ -15,6 +15,9 @@ dist-ssr
 .env.*
 !.env.example
 
+# Cross-platform lockfile ignore (prevents Windows-only native binary locks on Linux deployments)
+package-lock.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -13,5 +13,11 @@
     "preview": "npm run preview --prefix frontend",
     "backend:dev": "npm run dev --prefix backend",
     "backend:deploy": "npm run deploy --prefix backend"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-linux-x64-gnu": "1.2.16",
+    "@rolldown/binding-linux-x64-musl": "1.2.16",
+    "lightningcss-linux-x64-gnu": "1.33.0",
+    "lightningcss-linux-x64-musl": "1.33.0"
   }
 }
