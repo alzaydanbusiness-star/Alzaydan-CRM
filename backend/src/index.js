@@ -216,10 +216,18 @@ app.get('/api/health', (c) => {
 // One-Click Database Initialization Endpoint
 app.get('/api/init-db', async (c) => {
   try {
-    await c.env.DB.exec(SCHEMA_SQL);
+    const statements = SCHEMA_SQL
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    for (const stmt of statements) {
+      await c.env.DB.prepare(stmt).run();
+    }
+
     return c.json({
       success: true,
-      message: 'All 11 CRM tables and seed data have been initialized successfully in al-zaydan-crm-db!',
+      message: `All ${statements.length} tables and seed rows created successfully in al-zaydan-crm-db!`,
       timestamp: new Date().toISOString()
     });
   } catch (err) {
