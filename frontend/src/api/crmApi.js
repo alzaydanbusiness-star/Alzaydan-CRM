@@ -3,7 +3,7 @@
  * Seamlessly connects UI modules to the Cloudflare backend with resilient fallback.
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8787';
+const API_BASE = import.meta.env.VITE_API_URL || 'https://alzaydan-crm.alzaydan-business.workers.dev';
 
 // Generic Fetch Wrapper with Timeout
 async function apiFetch(endpoint, options = {}) {
