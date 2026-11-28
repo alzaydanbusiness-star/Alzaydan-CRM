@@ -166,16 +166,16 @@ export function getDeletedUserIdentifiers() {
 }
 
 /**
- * Record a deleted user permanently so they never reappear on refresh
+ * Record a deleted user permanently so canonical users never reappear on refresh
  */
 export function deleteStoredUser(id, email, name) {
   try {
     const deleted = getDeletedUserIdentifiers();
-    const toAdd = [
-      id !== undefined && id !== null ? String(id) : null,
-      email ? String(email).toLowerCase().trim() : null,
-      name ? String(name).toLowerCase().trim() : null
-    ].filter(Boolean);
+    // Only track clean email for deletion to prevent canonical user reappearance.
+    // Pure numeric IDs (like "5", "6") MUST NOT be stored as deletion targets,
+    // otherwise newly created users with sequential or numeric IDs will be falsely deleted!
+    const emailClean = email ? String(email).toLowerCase().trim() : null;
+    const toAdd = [emailClean].filter(Boolean);
 
     let changed = false;
     for (const item of toAdd) {
@@ -184,8 +184,11 @@ export function deleteStoredUser(id, email, name) {
         changed = true;
       }
     }
-    if (changed) {
-      localStorage.setItem(DELETED_KEY, JSON.stringify(deleted));
+
+    // Clean up any pure numeric IDs in deleted list
+    const cleanedDeleted = deleted.filter((item) => !/^\d+$/.test(String(item)));
+    if (changed || cleanedDeleted.length !== deleted.length) {
+      localStorage.setItem(DELETED_KEY, JSON.stringify(cleanedDeleted));
     }
 
     // Also update custom employees immediately in localStorage
@@ -193,16 +196,114 @@ export function deleteStoredUser(id, email, name) {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
+        const idMatch = id !== undefined && id !== null ? String(id) : null;
         const updated = parsed.filter((u) => {
-          const uId = String(u.id);
-          const uEmail = (u.email || '').toLowerCase().trim();
-          const uName = (u.name || '').toLowerCase().trim();
-          return !toAdd.includes(uId) && !toAdd.includes(uEmail) && !toAdd.includes(uName);
+          if (idMatch && String(u.id) === idMatch) return false;
+          if (emailClean && (u.email || '').toLowerCase().trim() === emailClean) return false;
+          return true;
         });
         localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updated));
       }
     }
+    window.dispatchEvent(new Event('alzaydan_user_updated'));
   } catch {}
+}
+
+/**
+ * Un-delete a user identifier when creating or re-registering an account
+ */
+export function unDeleteUser(id, email, name) {
+  try {
+    const raw = localStorage.getItem(DELETED_KEY);
+    if (!raw) return;
+    const deleted = JSON.parse(raw);
+    if (!Array.isArray(deleted)) return;
+
+    const emailLower = email ? String(email).toLowerCase().trim() : null;
+    const nameLower = name ? String(name).toLowerCase().trim() : null;
+    const idStr = id !== undefined && id !== null ? String(id) : null;
+
+    const updated = deleted.filter((item) => {
+      const itemStr = String(item).toLowerCase().trim();
+      // Remove any numeric IDs from deleted list
+      if (/^\d+$/.test(itemStr)) return false;
+      if (emailLower && itemStr === emailLower) return false;
+      if (nameLower && itemStr === nameLower) return false;
+      if (idStr && itemStr === idStr) return false;
+      return true;
+    });
+
+    localStorage.setItem(DELETED_KEY, JSON.stringify(updated));
+  } catch {}
+}
+
+/**
+ * Save users list to localStorage safely, keep current user profile synced, and notify listeners
+ */
+export function saveStoredUsers(users) {
+  try {
+    if (!Array.isArray(users)) return;
+    localStorage.setItem('alzaydan_custom_employees', JSON.stringify(users));
+
+    // Keep logged-in user profile picture and info synced with users table
+    try {
+      const storedCurrent = JSON.parse(localStorage.getItem('alzaydan_current_user') || '{}');
+      const currentEmail = (storedCurrent?.email || '').toLowerCase().trim();
+      const currentTier = (storedCurrent?.roleTier || '').toLowerCase().trim();
+
+      const matched = users.find(
+        (u) =>
+          (u.email && u.email.toLowerCase().trim() === currentEmail) ||
+          (currentTier === 'super-admin' &&
+            (u.email?.toLowerCase().trim() === 'al@gmail.com' || u.roleTier === 'super-admin'))
+      );
+
+      if (matched) {
+        const updatedCurrent = {
+          ...storedCurrent,
+          name: matched.name || storedCurrent.name,
+          email: matched.email || storedCurrent.email,
+          image: matched.image || matched.avatar || null,
+          avatar: matched.avatar || matched.image || null,
+          isImage: Boolean(matched.image || matched.avatar),
+          avatarText: matched.avatarText || storedCurrent.avatarText || 'SA',
+          role: matched.role || storedCurrent.role,
+          designation: matched.designation || storedCurrent.designation,
+          department: matched.department || storedCurrent.department
+        };
+        localStorage.setItem('alzaydan_current_user', JSON.stringify(updatedCurrent));
+      }
+    } catch {}
+
+    window.dispatchEvent(new Event('alzaydan_user_updated'));
+  } catch (err) {
+    console.error('Failed to save users to localStorage', err);
+  }
+}
+
+/**
+ * Add a new user to storage safely, un-deleting their email/id and persisting
+ */
+export function addStoredUser(newUser) {
+  if (!newUser || !newUser.name) return getStoredUsers();
+
+  // 1. Un-delete user so no past deletion filter affects them
+  unDeleteUser(newUser.id, newUser.email, newUser.name);
+
+  // 2. Retrieve existing users
+  const current = getStoredUsers();
+  const cleanEmail = (newUser.email || '').toLowerCase().trim();
+
+  // 3. Deduplicate
+  const filtered = current.filter((u) => {
+    if (u.id === newUser.id) return false;
+    if (cleanEmail && (u.email || '').toLowerCase().trim() === cleanEmail) return false;
+    return true;
+  });
+
+  const updated = [newUser, ...filtered];
+  saveStoredUsers(updated);
+  return updated;
 }
 
 /**
@@ -210,16 +311,22 @@ export function deleteStoredUser(id, email, name) {
  */
 export function getStoredUsers() {
   try {
-    const deletedList = getDeletedUserIdentifiers();
+    // Purge any accidental numeric IDs (e.g. "5", "6") from deletedList so numbers never block real users
+    let deletedList = getDeletedUserIdentifiers();
+    if (deletedList.some((item) => /^\d+$/.test(String(item)))) {
+      deletedList = deletedList.filter((item) => !/^\d+$/.test(String(item)));
+      try {
+        localStorage.setItem(DELETED_KEY, JSON.stringify(deletedList));
+      } catch {}
+    }
+
     const raw = localStorage.getItem('alzaydan_custom_employees');
 
     // If first time ever opening the app, initialize with canonical users minus deleted
     if (!raw) {
       const initial = CANONICAL_SYSTEM_USERS.filter((u) => {
         const uEmail = (u.email || '').toLowerCase().trim();
-        const uId = String(u.id);
-        const uName = (u.name || '').toLowerCase().trim();
-        return !deletedList.includes(uEmail) && !deletedList.includes(uId) && !deletedList.includes(uName);
+        return !deletedList.includes(uEmail);
       });
       localStorage.setItem('alzaydan_custom_employees', JSON.stringify(initial));
       return initial;
@@ -230,18 +337,12 @@ export function getStoredUsers() {
       parsed = [];
     }
 
-    // Filter out dummy test entries and deleted users
+    // Filter out dummy legacy test entries (e.g. hamdan)
     let filtered = parsed.filter((u) => {
       const nameLower = (u.name || '').toLowerCase().trim();
       const emailLower = (u.email || '').toLowerCase().trim();
-      const idStr = String(u.id);
       if (DUMMY_NAMES_TO_FILTER.includes(nameLower)) return false;
       if (emailLower.includes('hamdan@')) return false;
-      if (
-        deletedList.includes(emailLower) ||
-        deletedList.includes(idStr) ||
-        deletedList.includes(nameLower)
-      ) return false;
       return true;
     });
 
@@ -269,12 +370,10 @@ export function getStoredUsers() {
 
     return filtered;
   } catch {
-    const deletedList = getDeletedUserIdentifiers();
+    const deletedList = getDeletedUserIdentifiers().filter((item) => !/^\d+$/.test(String(item)));
     return CANONICAL_SYSTEM_USERS.filter((u) => {
       const uEmail = (u.email || '').toLowerCase().trim();
-      const uId = String(u.id);
-      const uName = (u.name || '').toLowerCase().trim();
-      return !deletedList.includes(uEmail) && !deletedList.includes(uId) && !deletedList.includes(uName);
+      return !deletedList.includes(uEmail);
     });
   }
 }

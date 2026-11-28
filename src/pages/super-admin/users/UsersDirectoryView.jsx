@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   Users,
   Search,
@@ -30,7 +30,15 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createFirebaseUser, syncFirestoreUsers } from '../../../services/firebaseAuth';
-import { getStoredUsers, canManageUsers, isSalesExecutive, deleteStoredUser } from '../../../utils/userDirectory';
+import {
+  getStoredUsers,
+  saveStoredUsers,
+  addStoredUser,
+  unDeleteUser,
+  canManageUsers,
+  isSalesExecutive,
+  deleteStoredUser
+} from '../../../utils/userDirectory';
 
 // Clean raw input to extract national 9-digit UAE mobile (5XXXXXXXX)
 const cleanUAEMobileDigits = (val) => {
@@ -112,6 +120,7 @@ const calculateAge = (dobString) => {
 // DOB Interactive Date Picker Popover Component
 function DobDatePicker({ value, onChange }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [openUpward, setOpenUpward] = useState(false);
   const containerRef = useRef(null);
 
   // Parse existing value "DD-MM-YYYY"
@@ -127,14 +136,50 @@ function DobDatePicker({ value, onChange }) {
   const [viewYear, setViewYear] = useState(() => (parsedDate ? parsedDate.year : 2000));
   const [viewMonth, setViewMonth] = useState(() => (parsedDate ? parsedDate.month : 0));
 
+  // Dynamic position check: open upward if near bottom of screen
+  const checkPosition = useCallback(() => {
+    if (containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // Calendar height is ~330px; if space below < 340px and space above is larger, flip upward
+      setOpenUpward(spaceBelow < 340 && spaceAbove > 260);
+    }
+  }, []);
+
   // Open & sync calendar view
   const handleToggleCalendar = () => {
-    if (!isOpen && parsedDate) {
-      setViewYear(parsedDate.year);
-      setViewMonth(parsedDate.month);
+    if (!isOpen) {
+      checkPosition();
+      if (parsedDate) {
+        setViewYear(parsedDate.year);
+        setViewMonth(parsedDate.month);
+      }
     }
     setIsOpen((prev) => !prev);
   };
+
+  // Keep position updated on scroll/resize and auto-scroll into view when opened
+  useEffect(() => {
+    if (!isOpen) return;
+
+    checkPosition();
+    const handleScrollOrResize = () => checkPosition();
+    window.addEventListener('scroll', handleScrollOrResize, true);
+    window.addEventListener('resize', handleScrollOrResize);
+
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 50);
+
+    return () => {
+      window.removeEventListener('scroll', handleScrollOrResize, true);
+      window.removeEventListener('resize', handleScrollOrResize);
+      clearTimeout(timer);
+    };
+  }, [isOpen, checkPosition]);
 
   // Click outside to dismiss calendar popover
   useEffect(() => {
@@ -168,6 +213,16 @@ function DobDatePicker({ value, onChange }) {
       setViewYear((y) => y + 1);
     } else {
       setViewMonth((m) => m + 1);
+    }
+  };
+
+  // Wheel scroll navigation: scrolling on calendar navigates months smoothly
+  const handleWheel = (e) => {
+    if (e.target.tagName && e.target.tagName.toLowerCase() === 'select') return;
+    if (e.deltaY < 0) {
+      handlePrevMonth();
+    } else if (e.deltaY > 0) {
+      handleNextMonth();
     }
   };
 
@@ -224,9 +279,14 @@ function DobDatePicker({ value, onChange }) {
         </div>
       </div>
 
-      {/* Calendar Dropdown Popover */}
+      {/* Calendar Dropdown Popover with dynamic upward/downward flip & smooth scroll */}
       {isOpen && (
-        <div className="absolute left-0 mt-1.5 w-72 bg-white rounded-xl shadow-xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 duration-100">
+        <div
+          onWheel={handleWheel}
+          className={`absolute left-0 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 p-3 z-[70] animate-in fade-in zoom-in-95 duration-100 max-h-[85vh] overflow-y-auto ${
+            openUpward ? 'bottom-full mb-2' : 'top-full mt-1.5'
+          }`}
+        >
           {/* Header: Month & Year Selectors + Nav Arrows */}
           <div className="flex items-center justify-between gap-1 mb-2.5 pb-2 border-b border-slate-100">
             <button
@@ -242,7 +302,7 @@ function DobDatePicker({ value, onChange }) {
               <select
                 value={viewMonth}
                 onChange={(e) => setViewMonth(Number(e.target.value))}
-                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none cursor-pointer"
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 {MONTH_NAMES.map((m, idx) => (
                   <option key={m} value={idx}>{m}</option>
@@ -252,7 +312,7 @@ function DobDatePicker({ value, onChange }) {
               <select
                 value={viewYear}
                 onChange={(e) => setViewYear(Number(e.target.value))}
-                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none cursor-pointer max-h-40"
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-200 rounded px-1.5 py-1 outline-none cursor-pointer hover:bg-slate-100 transition-colors"
               >
                 {DOB_YEARS.map((y) => (
                   <option key={y} value={y}>{y}</option>
@@ -619,62 +679,42 @@ export default function UsersDirectoryView() {
   // Live Users Directory (Always preserves canonical real team users, synced with localStorage)
   const [users, setUsers] = useState(() => getStoredUsers());
 
-  // Pull cloud users from Firestore into local directory
+  // Listen for storage changes across other browser tabs
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (!e || e.key === 'alzaydan_custom_employees') {
+        setUsers(getStoredUsers());
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
+  // Pull cloud users from Firestore into local directory on mount
   useEffect(() => {
     syncFirestoreUsers().then((cloudUsers) => {
       if (cloudUsers && cloudUsers.length > 0) {
         setUsers((prev) => {
           const merged = [...prev];
+          let hasNew = false;
           cloudUsers.forEach((cu) => {
+            const cuEmail = (cu.email || '').toLowerCase().trim();
             const exists = merged.some(
-              (m) => (m.email && m.email.toLowerCase() === (cu.email || '').toLowerCase()) || m.id === cu.id
+              (m) => (m.email && m.email.toLowerCase().trim() === cuEmail) || m.id === cu.id
             );
             if (!exists) {
               merged.push(cu);
+              hasNew = true;
             }
           });
+          if (hasNew) {
+            saveStoredUsers(merged);
+          }
           return merged;
         });
       }
     }).catch(() => {});
   }, []);
-
-  // Automatically synchronize directory state to localStorage
-  useEffect(() => {
-    try {
-      localStorage.setItem('alzaydan_custom_employees', JSON.stringify(users));
-
-      // Keep logged in user profile picture and info synced with users table
-      const storedCurrent = JSON.parse(localStorage.getItem('alzaydan_current_user') || '{}');
-      const currentEmail = (storedCurrent?.email || '').toLowerCase();
-      const currentTier = (storedCurrent?.roleTier || '').toLowerCase();
-
-      const matched = users.find(u => 
-        (u.email && u.email.toLowerCase() === currentEmail) ||
-        (currentTier === 'super-admin' && (u.email?.toLowerCase() === 'al@gmail.com' || u.roleTier === 'super-admin'))
-      );
-
-      if (matched) {
-        const updatedCurrent = {
-          ...storedCurrent,
-          name: matched.name || storedCurrent.name,
-          email: matched.email || storedCurrent.email,
-          image: matched.image || matched.avatar || null,
-          avatar: matched.avatar || matched.image || null,
-          isImage: Boolean(matched.image || matched.avatar),
-          avatarText: matched.avatarText || storedCurrent.avatarText || 'SA',
-          role: matched.role || storedCurrent.role,
-          designation: matched.designation || storedCurrent.designation,
-          department: matched.department || storedCurrent.department
-        };
-        localStorage.setItem('alzaydan_current_user', JSON.stringify(updatedCurrent));
-      }
-
-      window.dispatchEvent(new Event('alzaydan_user_updated'));
-    } catch (e) {
-      console.error('Failed to sync users to localStorage', e);
-    }
-  }, [users]);
 
   // Hierarchy Tier Derivations
   const currentTier = useMemo(() => {
@@ -954,7 +994,8 @@ export default function UsersDirectoryView() {
       }
     }
 
-    const newId = users.length > 0 ? Math.max(...users.map((u) => u.id)) + 1 : 1;
+    // Generate unique timestamp ID so it NEVER collides with small integer IDs
+    const newId = Date.now();
     const initial = newUserForm.name.trim().slice(0, 2).toUpperCase();
     const createdTier = getUserRoleTier(
       newUserForm.crmProfile,
@@ -978,7 +1019,7 @@ export default function UsersDirectoryView() {
       reportingManager: newUserForm.reportsTo || 'Super Admin (CEO)',
       employeeType: newUserForm.crmProfile || 'Sales Executive',
       status: 'Active',
-      avatarBg: 'bg-[#011635] text-white',
+      avatarBg: 'bg-[#003579] text-white',
       avatarText: initial,
       isImage: Boolean(newUserForm.imagePreview),
       image: newUserForm.imagePreview || null,
@@ -990,9 +1031,11 @@ export default function UsersDirectoryView() {
       joinDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
     };
 
-    setUsers((prev) => [created, ...prev]);
+    // 1. Add user safely to storage (un-deletes, prepends, saves to localStorage, and updates current user)
+    const updatedUsers = addStoredUser(created);
+    setUsers(updatedUsers);
 
-    // Automatically register and sync user with Firebase cloud authentication
+    // 2. Automatically register and sync user with Firebase cloud authentication
     createFirebaseUser({
       email: created.email,
       password: created.password,
@@ -1224,8 +1267,8 @@ export default function UsersDirectoryView() {
 
     const formattedMobile = formatUAEMobileNumber(rawMobile).formatted;
 
-    setUsers((prevUsers) => {
-      const updated = prevUsers.map((u) => {
+    try {
+      const updated = users.map((u) => {
         const isMatch =
           String(u.id) === String(editUserForm.id) ||
           (u.email && u.email.toLowerCase().trim() === editUserForm.email.toLowerCase().trim());
@@ -1267,42 +1310,39 @@ export default function UsersDirectoryView() {
         return u;
       });
 
-      try {
-        localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updated));
-      } catch (err) {
-        console.error('Failed to sync to localStorage', err);
+      setUsers(updated);
+      saveStoredUsers(updated);
+
+      toast.success(`User "${editUserForm.name}" updated successfully!`);
+      if (selectedUserDetail) {
+        setSelectedUserDetail((prev) => ({
+          ...(prev || {}),
+          name: editUserForm.name.trim(),
+          email: editUserForm.email.trim(),
+          username: editUserForm.email.trim().split('@')[0],
+          role: targetProfile || targetDesig,
+          roleTier: editTierCalculated,
+          crmProfile: targetProfile,
+          organizationalPosition: targetPos,
+          department: targetDept,
+          designation: targetDesig,
+          reportsTo: targetReportsTo,
+          reportingManager: targetReportsTo,
+          phone: formattedMobile ? `+971 ${formattedMobile}` : (prev?.phone || '+971 50 123 4567'),
+          mobileNumber: formattedMobile || prev?.mobileNumber,
+          dob: editUserForm.dob || prev?.dob,
+          isImage: Boolean(editUserForm.imagePreview),
+          image: editUserForm.imagePreview,
+          avatar: editUserForm.imagePreview,
+          status: editUserForm.status || 'Active',
+          permissions: editUserForm.permissions
+        }));
+        setViewMode('detail');
+      } else {
+        setViewMode('list');
       }
-
-      return updated;
-    });
-
-    toast.success(`User "${editUserForm.name}" updated successfully!`);
-    if (selectedUserDetail) {
-      setSelectedUserDetail((prev) => ({
-        ...(prev || {}),
-        name: editUserForm.name.trim(),
-        email: editUserForm.email.trim(),
-        username: editUserForm.email.trim().split('@')[0],
-        role: targetProfile || targetDesig,
-        roleTier: editTierCalculated,
-        crmProfile: targetProfile,
-        organizationalPosition: targetPos,
-        department: targetDept,
-        designation: targetDesig,
-        reportsTo: targetReportsTo,
-        reportingManager: targetReportsTo,
-        phone: formattedMobile ? `+971 ${formattedMobile}` : (prev?.phone || '+971 50 123 4567'),
-        mobileNumber: formattedMobile || prev?.mobileNumber,
-        dob: editUserForm.dob || prev?.dob,
-        isImage: Boolean(editUserForm.imagePreview),
-        image: editUserForm.imagePreview,
-        avatar: editUserForm.imagePreview,
-        status: editUserForm.status || 'Active',
-        permissions: editUserForm.permissions
-      }));
-      setViewMode('detail');
-    } else {
-      setViewMode('list');
+    } catch (err) {
+      console.error('Failed to update user', err);
     }
   };
 
@@ -1324,25 +1364,22 @@ export default function UsersDirectoryView() {
     }
     const updated = users.filter((u) => u.id !== id);
     setUsers(updated);
-    try {
-      localStorage.setItem('alzaydan_custom_employees', JSON.stringify(updated));
-    } catch {}
-    window.dispatchEvent(new Event('alzaydan_user_updated'));
+    saveStoredUsers(updated);
     setActiveActionId(null);
     toast.success(`User "${target?.name || 'Account'}" permanently removed.`);
   };
 
   const handleToggleStatus = (id) => {
-    setUsers(
-      users.map((u) => {
-        if (u.id === id) {
-          const nextStatus = u.status === 'Active' ? 'Inactive' : 'Active';
-          toast.success(`User status changed to ${nextStatus}`);
-          return { ...u, status: nextStatus };
-        }
-        return u;
-      })
-    );
+    const updated = users.map((u) => {
+      if (u.id === id) {
+        const nextStatus = u.status === 'Active' ? 'Inactive' : 'Active';
+        toast.success(`User status changed to ${nextStatus}`);
+        return { ...u, status: nextStatus };
+      }
+      return u;
+    });
+    setUsers(updated);
+    saveStoredUsers(updated);
     setActiveActionId(null);
   };
 
@@ -1728,9 +1765,9 @@ export default function UsersDirectoryView() {
       {/* 2. FULL VIEW: ADD USER (Matching Reference Image 2 Exactly)    */}
       {/* ============================================================== */}
       {viewMode === 'create' && (
-        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs">
           {/* Header */}
-          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs">
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs rounded-t-xl">
             <div className="flex items-center gap-2.5">
               <User className="w-5 h-5 text-slate-700" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
@@ -1759,7 +1796,7 @@ export default function UsersDirectoryView() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleAddUserSubmit} className="p-5 sm:p-6 space-y-6">
+          <form onSubmit={handleAddUserSubmit} className="p-5 sm:p-6 space-y-6 pb-48 sm:pb-56">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
               {/* LEFT COLUMN */}
               <div className="space-y-4">
@@ -2331,9 +2368,9 @@ export default function UsersDirectoryView() {
       {/* 2b. FULL VIEW: EDIT USER (Mirroring Add User Structure)        */}
       {/* ============================================================== */}
       {viewMode === 'edit' && (
-        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs">
           {/* Header (Sticky with Closing Arrow on Top Right) */}
-          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs">
+          <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-xs p-4 sm:p-5 flex items-center justify-between border-b border-slate-100 shadow-2xs rounded-t-xl">
             <div className="flex items-center gap-2.5">
               <Edit2 className="w-5 h-5 text-slate-700" />
               <h2 className="text-base font-bold text-slate-900 tracking-tight">
@@ -2367,7 +2404,7 @@ export default function UsersDirectoryView() {
           </div>
 
           {/* Form */}
-          <form onSubmit={handleEditUserSubmit} noValidate className="p-5 sm:p-6 space-y-6">
+          <form onSubmit={handleEditUserSubmit} noValidate className="p-5 sm:p-6 space-y-6 pb-48 sm:pb-56">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-5">
               {/* LEFT COLUMN */}
               <div className="space-y-4">

@@ -15,10 +15,21 @@ import {
   CreditCard,
   Package,
   ChevronDown,
-  Edit3
+  Edit3,
+  Maximize2,
+  Minimize2,
+  Download,
+  Building2,
+  Landmark,
+  CheckCircle2,
+  BookOpen,
+  Info,
+  Image as ImageIcon,
+  UploadCloud
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
+import CommercialDocumentPdfModal, { numberToAEDWords } from '../../../components/CommercialDocumentPdfModal';
 
 export default function TaxInvoiceView({
   employees = [],
@@ -49,8 +60,53 @@ export default function TaxInvoiceView({
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedInvoiceDetail, setSelectedInvoiceDetail] = useState(null);
+  const [isDetailFullScreen, setIsDetailFullScreen] = useState(false);
+  const [pdfPreviewModal, setPdfPreviewModal] = useState({ isOpen: false, data: null });
   const [activeActionId, setActiveActionId] = useState(null);
   const [editingInvoiceId, setEditingInvoiceId] = useState(null);
+
+  const handleOpenPdfPreview = (invoice) => {
+    if (!invoice) return;
+    setPdfPreviewModal({ isOpen: true, data: invoice });
+  };
+  const handleClosePdfPreview = () => setPdfPreviewModal({ isOpen: false, data: null });
+
+  const handleOpenView = (item) => {
+    setSelectedInvoiceDetail(item);
+    setViewMode('view');
+    setActiveActionId(null);
+  };
+
+  const handleCloseView = () => {
+    setSelectedInvoiceDetail(null);
+    setViewMode('list');
+  };
+
+  const currentInvoiceProducts = useMemo(() => {
+    if (!selectedInvoiceDetail) return [];
+    if (selectedInvoiceDetail.products && selectedInvoiceDetail.products.length > 0) {
+      return selectedInvoiceDetail.products;
+    }
+    const rawAmt = parseFloat(selectedInvoiceDetail.rawAmount) || 2000;
+    return [
+      {
+        id: 1,
+        itemName: selectedInvoiceDetail.description || 'tap',
+        itemCode: 'nsbdjhd454',
+        brand: 'll',
+        quantity: 1,
+        price: rawAmt,
+        total: rawAmt
+      }
+    ];
+  }, [selectedInvoiceDetail]);
+
+  const invoiceProductsCalculated = useMemo(() => {
+    const sub = currentInvoiceProducts.reduce((acc, p) => acc + (parseFloat(p.total ?? (p.quantity * p.price || 0)) || 0), 0);
+    const vat = sub * 0.05;
+    const tot = sub + vat;
+    return { sub, vat, tot };
+  }, [currentInvoiceProducts]);
 
   // Close actions dropdown on outside click
   useEffect(() => {
@@ -497,6 +553,10 @@ export default function TaxInvoiceView({
     attention: '',
     description: '',
 
+    // Product Images (2 Fields)
+    productImage1: null,
+    productImage2: null,
+
     // Checkboxes
     addReceipt: false,
     addPaymentFollowup: false,
@@ -843,6 +903,32 @@ export default function TaxInvoiceView({
     return filteredList.slice(start, start + rowsPerPage);
   }, [filteredList, currentPage, rowsPerPage]);
 
+  // Product Image Handlers (Image 1 & Image 2)
+  const handleProductImageUpload = (e, fieldKey) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please upload an image file (PNG, JPG, WEBP)');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      setAddInvoiceForm((prev) => ({
+        ...prev,
+        [fieldKey]: uploadEvent.target.result
+      }));
+      toast.success(`${fieldKey === 'productImage1' ? 'Product Image 1' : 'Product Image 2'} uploaded!`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveProductImage = (fieldKey) => {
+    setAddInvoiceForm((prev) => ({
+      ...prev,
+      [fieldKey]: null
+    }));
+  };
+
   // Create Tax Invoice Handler (Image 3)
   const handleAddInvoiceSubmit = (e) => {
     e.preventDefault();
@@ -892,6 +978,9 @@ export default function TaxInvoiceView({
       invoiceType: addInvoiceForm.invoiceType,
       productService: 'Commercial Technical Services',
       bizOpp: 'New Business',
+      productImage1: addInvoiceForm.productImage1 || null,
+      productImage2: addInvoiceForm.productImage2 || null,
+      productImages: [addInvoiceForm.productImage1, addInvoiceForm.productImage2].filter(Boolean),
       products: addInvoiceForm.products && addInvoiceForm.products.length > 0 ? addInvoiceForm.products : [
         {
           id: 1,
@@ -929,6 +1018,9 @@ export default function TaxInvoiceView({
                 balance: `AED ${balanceVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 status: status,
                 invoiceType: addInvoiceForm.invoiceType,
+                productImage1: addInvoiceForm.productImage1 || null,
+                productImage2: addInvoiceForm.productImage2 || null,
+                productImages: [addInvoiceForm.productImage1, addInvoiceForm.productImage2].filter(Boolean),
                 products: addInvoiceForm.products || []
               }
             : inv
@@ -964,6 +1056,8 @@ export default function TaxInvoiceView({
       referenceNumber: '',
       lpoNumber: '',
       documentFileName: '',
+      productImage1: null,
+      productImage2: null,
       products: []
     }));
   };
@@ -996,6 +1090,8 @@ export default function TaxInvoiceView({
       advancePaid: cleanAdv > 0 ? String(cleanAdv.toFixed(2)) : '0.00',
       attention: item.attention || '',
       description: item.description || '',
+      productImage1: item.productImage1 || item.productImages?.[0] || null,
+      productImage2: item.productImage2 || item.productImages?.[1] || null,
       addReceipt: false,
       addPaymentFollowup: false,
       products: item.products && item.products.length > 0 ? item.products : []
@@ -1439,6 +1535,142 @@ export default function TaxInvoiceView({
               </div>
             </div>
 
+            {/* Product Images (2 Upload Fields: Primary Photo & Detail/Spec Photo) */}
+            <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex items-center justify-between pb-2.5 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-slate-800">Product Images</span>
+                  <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">
+                    (Upload up to 2 product images: primary photo and detail/spec photo)
+                  </span>
+                </div>
+                {(addInvoiceForm.productImage1 || addInvoiceForm.productImage2) && (
+                  <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                    {[addInvoiceForm.productImage1, addInvoiceForm.productImage2].filter(Boolean).length} / 2 attached
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Product Image 1 */}
+                <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                      Product Image 1 (Primary Photo)
+                    </label>
+                    {addInvoiceForm.productImage1 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveProductImage('productImage1')}
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {addInvoiceForm.productImage1 ? (
+                    <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center h-36">
+                      <img
+                        src={addInvoiceForm.productImage1}
+                        alt="Product Image 1"
+                        className="w-full h-full object-contain p-2"
+                      />
+                      <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label className="px-3 py-1.5 bg-white text-slate-800 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-100 shadow transition flex items-center gap-1.5">
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          Change Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={(e) => handleProductImageUpload(e, 'productImage1')}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-slate-300 hover:border-blue-500 hover:bg-blue-50/20 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition h-36 group">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-blue-100 flex items-center justify-center text-slate-400 group-hover:text-blue-600 transition">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-semibold text-slate-700 group-hover:text-blue-600">Click to upload Product Image 1</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">PNG, JPG, WEBP (Max 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(e) => handleProductImageUpload(e, 'productImage1')}
+                      />
+                    </label>
+                  )}
+                </div>
+
+                {/* 2. Product Image 2 */}
+                <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-2 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold text-slate-700 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                      Product Image 2 (Secondary / Spec Photo)
+                    </label>
+                    {addInvoiceForm.productImage2 && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveProductImage('productImage2')}
+                        className="text-[11px] font-semibold text-rose-600 hover:text-rose-700 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  {addInvoiceForm.productImage2 ? (
+                    <div className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 flex items-center justify-center h-36">
+                      <img
+                        src={addInvoiceForm.productImage2}
+                        alt="Product Image 2"
+                        className="w-full h-full object-contain p-2"
+                      />
+                      <div className="absolute inset-0 bg-slate-900/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <label className="px-3 py-1.5 bg-white text-slate-800 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-100 shadow transition flex items-center gap-1.5">
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          Change Image
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="sr-only"
+                            onChange={(e) => handleProductImageUpload(e, 'productImage2')}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/20 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition h-36 group">
+                      <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-emerald-100 flex items-center justify-center text-slate-400 group-hover:text-emerald-600 transition">
+                        <UploadCloud className="w-5 h-5" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-xs font-semibold text-slate-700 group-hover:text-emerald-600">Click to upload Product Image 2</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5">PNG, JPG, WEBP (Max 5MB)</p>
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="sr-only"
+                        onChange={(e) => handleProductImageUpload(e, 'productImage2')}
+                      />
+                    </label>
+                  )}
+                </div>
+              </div>
+            </div>
+
             {/* Products / Items Details (Inherited from Opportunity / Quotation / Order) */}
             <div className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3">
               <div className="flex items-center justify-between pb-2.5 border-b border-slate-200">
@@ -1620,6 +1852,449 @@ export default function TaxInvoiceView({
               </div>
             </div>
           </form>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* TIER: VIEW INVOICE (Full Page View matching User Reference)    */}
+      {/* ============================================================== */}
+      {viewMode === 'view' && selectedInvoiceDetail && (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden animate-in fade-in duration-150 space-y-0">
+          {/* Header Bar: Timestamp | Red [X] */}
+          <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-white">
+            <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 tracking-wide">
+              <FileText className="w-4 h-4 text-slate-500" />
+              <span className="uppercase text-[11px] font-mono text-slate-600">
+                INVOICE CREATED BY {selectedInvoiceDetail.owner || defaultOwner} ON {selectedInvoiceDetail.date || '16-11-2026'} | INVOICE LAST MODIFIED BY {selectedInvoiceDetail.owner || defaultOwner} ON {selectedInvoiceDetail.date || '16-11-2026'}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCloseView}
+              className="w-6 h-6 rounded bg-[#EF4444] hover:bg-red-600 text-white flex items-center justify-center cursor-pointer transition shadow-xs"
+              title="Close and return to list"
+            >
+              <X className="w-4 h-4 stroke-[2.5]" />
+            </button>
+          </div>
+
+          <div className="p-5 sm:p-6 space-y-6">
+            {/* Top 2-Column: Invoice Details & Overview Cards */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* LEFT COLUMN: Invoice Details */}
+              <div className="lg:col-span-6 bg-slate-50/50 rounded-2xl border border-slate-200/80 p-5 space-y-3">
+                <div className="flex items-center gap-2 font-bold text-slate-800 text-xs pb-2 border-b border-slate-200/60">
+                  <FileText className="w-4 h-4 text-blue-600" />
+                  <span>Invoice Details</span>
+                </div>
+
+                <div className="divide-y divide-slate-100 text-xs">
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Invoice Owner</span>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 rounded-full bg-[#011635] text-white text-[10px] font-bold flex items-center justify-center">
+                        {(selectedInvoiceDetail.owner || defaultOwner)[0]?.toUpperCase()}
+                      </div>
+                      <span className="font-bold text-slate-800 uppercase">{selectedInvoiceDetail.owner || defaultOwner}</span>
+                    </div>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Invoice Number</span>
+                    <span className="font-mono font-bold text-slate-900">{selectedInvoiceDetail.invoiceNo || 'CTINV#15260'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Invoice Type</span>
+                    <span className="text-slate-800 font-medium">{selectedInvoiceDetail.invoiceType || 'Standard Tax Invoice'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Invoice Date</span>
+                    <span className="font-mono text-slate-700">{selectedInvoiceDetail.date || '16-11-2026'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Opportunity</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-blue-600">
+                        {selectedInvoiceDetail.opportunityOrder || selectedInvoiceDetail.referenceNumber || 'Tap'}
+                      </span>
+                      <Info className="w-3 h-3 text-blue-500" />
+                    </div>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Customer Name</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-bold text-blue-600">{selectedInvoiceDetail.customer || 'Shaheer'}</span>
+                      <Info className="w-3 h-3 text-blue-500" />
+                    </div>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Prepared By</span>
+                    <span className="font-medium text-slate-800">{selectedInvoiceDetail.owner || defaultOwner}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Prepared By Mobile</span>
+                    <span className="font-mono text-slate-700">+971585262058</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Prepared By Email</span>
+                    <span className="text-slate-700">shemin@alzaydanfze.com</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Prepared By Designation</span>
+                    <span className="text-slate-700">Sales Executive</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Attention</span>
+                    <span className="font-semibold text-slate-800">{selectedInvoiceDetail.attention || 'Procurement Department'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Mobile</span>
+                    <span className="font-mono text-slate-700">+971 567890987</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Status</span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                        selectedInvoiceDetail.status === 'Paid'
+                          ? 'bg-[#00A389] text-white'
+                          : selectedInvoiceDetail.status === 'Partially Paid'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-amber-500 text-white'
+                      }`}
+                    >
+                      {selectedInvoiceDetail.status || 'Pending'}
+                    </span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Advance Paid</span>
+                    <span className="font-mono font-bold text-emerald-600">{selectedInvoiceDetail.paid || 'AED 0.00'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Due Amount</span>
+                    <span className="font-mono font-extrabold text-rose-600">{selectedInvoiceDetail.balance || selectedInvoiceDetail.amount}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Submitted For Approval</span>
+                    <span className="text-slate-600 font-mono text-[11px]">
+                      {(selectedInvoiceDetail.owner || defaultOwner).toUpperCase()} ON MON {selectedInvoiceDetail.date || '16-11-2026'} 5:45:13 PM
+                    </span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Approved</span>
+                    <span className="text-slate-600 font-mono text-[11px]">
+                      {selectedInvoiceDetail.status === 'Paid'
+                        ? `${(selectedInvoiceDetail.owner || defaultOwner).toUpperCase()} ON MON ${selectedInvoiceDetail.date || '16-11-2026'} 5:45:17 PM`
+                        : 'Pending Approval'}
+                    </span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Payment Location</span>
+                    <span className="text-slate-800 font-medium">{selectedInvoiceDetail.paymentLocation || 'Mussafah Industrial Area, Abu Dhabi'}</span>
+                  </div>
+
+                  <div className="py-2 flex items-center justify-between">
+                    <span className="text-slate-500 font-medium">Tax Registration (TRN)</span>
+                    <span className="font-mono font-bold text-slate-900">100 234 567 800 003</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT COLUMN: Overview Metric Cards & Itemized Products */}
+              <div className="lg:col-span-6 space-y-4">
+                <div className="font-bold text-slate-800 text-xs pb-1 flex items-center justify-between">
+                  <span>Overview</span>
+                  <span className="text-[11px] font-mono text-slate-500 font-semibold">5% UAE VAT</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                  {/* ACTUAL PRICE */}
+                  <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">ACTUAL PRICE</div>
+                      <div className="text-sm font-extrabold text-slate-900 mt-1 font-mono">
+                        AED {invoiceProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-xs">
+                      AED
+                    </div>
+                  </div>
+
+                  {/* VAT (5%) */}
+                  <div className="p-3.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-slate-400">VAT (5%)</div>
+                      <div className="text-sm font-extrabold text-slate-900 mt-1 font-mono">
+                        AED {invoiceProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-xs">
+                      %
+                    </div>
+                  </div>
+
+                  {/* TOTAL INVOICE VALUE */}
+                  <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200/80 shadow-2xs flex items-center justify-between">
+                    <div>
+                      <div className="text-[10px] uppercase font-bold text-blue-700">TOTAL INVOICE VALUE</div>
+                      <div className="text-sm font-extrabold text-blue-700 mt-1 font-mono">
+                        AED {invoiceProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="w-7 h-7 rounded-lg bg-[#011635] text-white flex items-center justify-center font-bold text-xs">
+                      $
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products / Items Details (Right Column) */}
+                <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-5 space-y-3">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <Package className="w-4 h-4 text-[#16477A]" />
+                      <span className="text-xs font-bold text-slate-800">Products / Items Details</span>
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-500">
+                      {currentInvoiceProducts.length} {currentInvoiceProducts.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full min-w-[700px] text-left text-xs">
+                      <thead>
+                        <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
+                          <th className="py-2.5 px-3">Item Name</th>
+                          <th className="py-2.5 px-2.5">Code</th>
+                          <th className="py-2.5 px-2.5">Brand</th>
+                          <th className="py-2.5 px-2 text-center">QTY</th>
+                          <th className="py-2.5 px-2.5 text-right">Unit Price</th>
+                          <th className="py-2.5 px-3 text-right">Total (AED)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {currentInvoiceProducts.map((p, idx) => {
+                          const itemTotal = parseFloat(p.total ?? (p.quantity * p.price || 0)) || 0;
+                          return (
+                            <tr key={p.id || idx} className="hover:bg-slate-50/50">
+                              <td className="py-2.5 px-3">
+                                <span className="font-semibold text-slate-900 block">{p.itemName || '—'}</span>
+                                {(p.description || p.itemCode) && (
+                                  <span className="text-[10px] text-slate-500 block">
+                                    {p.description || `Technical spec code: ${p.itemCode}`}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-2.5 px-2.5 font-mono text-slate-600 text-[11px]">{p.itemCode || '—'}</td>
+                              <td className="py-2.5 px-2.5 text-slate-700">{p.brand || '—'}</td>
+                              <td className="py-2.5 px-2 text-center font-bold text-slate-800">{p.quantity || 1}</td>
+                              <td className="py-2.5 px-2.5 text-right font-mono text-slate-700">
+                                {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                              <td className="py-2.5 px-3 text-right font-mono font-bold text-[#16477A]">
+                                {itemTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="bg-slate-50/80 font-bold border-t border-slate-200 text-xs">
+                          <td colSpan={5} className="py-2 px-3 text-right text-slate-600">
+                            Subtotal:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-900">
+                            AED {invoiceProductsCalculated.sub.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-slate-50/80 font-bold text-xs">
+                          <td colSpan={5} className="py-1.5 px-3 text-right text-slate-500 font-medium">
+                            5% UAE VAT:
+                          </td>
+                          <td className="py-1.5 px-3 text-right font-mono text-slate-700">
+                            AED {invoiceProductsCalculated.vat.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        <tr className="bg-blue-50/60 font-extrabold text-xs text-[#011635] border-t border-blue-100">
+                          <td colSpan={5} className="py-2 px-3 text-right text-[#011635]">
+                            Total Invoice Value:
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-[#16477A] text-sm">
+                            AED {invoiceProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Attached Product Images (if any) */}
+            {(selectedInvoiceDetail.productImage1 || selectedInvoiceDetail.productImage2 || (selectedInvoiceDetail.productImages && selectedInvoiceDetail.productImages.length > 0)) && (
+              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 sm:p-5 space-y-3">
+                <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-blue-600" />
+                    <span className="text-xs font-bold text-slate-800">Attached Product Photos</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {[selectedInvoiceDetail.productImage1, selectedInvoiceDetail.productImage2].filter(Boolean).length} {([selectedInvoiceDetail.productImage1, selectedInvoiceDetail.productImage2].filter(Boolean).length === 1) ? 'photo' : 'photos'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {selectedInvoiceDetail.productImage1 && (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-3 space-y-2">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                        Product Image 1 (Primary Photo)
+                      </span>
+                      <div className="rounded-lg overflow-hidden h-48 bg-white border border-slate-200/80 flex items-center justify-center p-2">
+                        <img
+                          src={selectedInvoiceDetail.productImage1}
+                          alt="Product 1"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedInvoiceDetail.productImage2 && (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-3 space-y-2">
+                      <span className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        Product Image 2 (Secondary / Spec Photo)
+                      </span>
+                      <div className="rounded-lg overflow-hidden h-48 bg-white border border-slate-200/80 flex items-center justify-center p-2">
+                        <img
+                          src={selectedInvoiceDetail.productImage2}
+                          alt="Product 2"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Scope / Details & Comments & Settlement */}
+            <div className="bg-slate-50/60 rounded-2xl border border-slate-200/80 p-5 space-y-4">
+              {selectedInvoiceDetail.description && (
+                <div>
+                  <div className="font-bold text-slate-800 text-xs mb-1.5 flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-blue-600" />
+                    <span>Invoice Scope &amp; Details</span>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed bg-white p-3.5 rounded-xl border border-slate-200/70 font-medium">
+                    {selectedInvoiceDetail.description}
+                  </p>
+                </div>
+              )}
+
+              {/* Settlement & Amount in Words */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 space-y-2">
+                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Landmark className="w-4 h-4 text-blue-600" />
+                    <span>Bank Wire Transfer Information</span>
+                  </div>
+                  <div className="space-y-1 text-slate-600 text-[11.5px]">
+                    <div><span className="text-slate-500">Bank:</span> Emirates NBD Bank PJSC</div>
+                    <div><span className="text-slate-500">Beneficiary:</span> AL ZAYDAN INTERNATIONAL FZE</div>
+                    <div><span className="text-slate-500">Account No:</span> <span className="font-mono font-bold text-slate-900">1012345678901</span></div>
+                    <div><span className="text-slate-500">IBAN:</span> <span className="font-mono font-bold text-slate-900">AE24 0260 0010 1234 5678 901</span></div>
+                    <div><span className="text-slate-500">SWIFT / BIC:</span> <span className="font-mono font-bold text-slate-900">EBILAEAD</span></div>
+                  </div>
+                </div>
+
+                <div className="bg-white p-3.5 rounded-xl border border-slate-200/70 space-y-2 flex flex-col justify-between">
+                  <div>
+                    <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px] block">Settlement Status</span>
+                    <div className="flex justify-between items-center mt-1">
+                      <span className="text-slate-600">Amount Paid:</span>
+                      <span className="font-mono text-emerald-600 font-bold">{selectedInvoiceDetail.paid || 'AED 0.00'}</span>
+                    </div>
+                    <div className="flex justify-between items-center mt-1 pt-1 border-t border-slate-100">
+                      <span className="font-bold text-slate-900">Outstanding Balance:</span>
+                      <span className="font-mono font-extrabold text-rose-600 text-sm">
+                        {selectedInvoiceDetail.balance || `AED ${invoiceProductsCalculated.tot.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100">
+                    <span className="text-slate-500 text-[11px] block font-medium">Amount in Words:</span>
+                    <span className="font-bold text-[#16477A] text-[11.5px] block mt-0.5">
+                      {numberToAEDWords(invoiceProductsCalculated.tot)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Action Buttons: Back on left, Print/Edit/Delete on right */}
+            <div className="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleCloseView}
+                className="px-4 py-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleOpenPdfPreview(selectedInvoiceDetail)}
+                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const itemToEdit = selectedInvoiceDetail;
+                    handleCloseView();
+                    handleOpenEdit(itemToEdit);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleDelete(selectedInvoiceDetail.id, selectedInvoiceDetail.invoiceNo);
+                    handleCloseView();
+                  }}
+                  className="px-4 py-2 rounded-xl bg-[#EF4444] hover:bg-red-600 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1976,8 +2651,15 @@ export default function TaxInvoiceView({
                             <span className="font-semibold text-slate-800">{item.owner || 'Al Zaydan'}</span>
                           </div>
                         </td>
-                        <td className="py-3 px-3 font-mono font-bold text-blue-600 text-xs">
-                          {item.invoiceNo}
+                        <td className="py-3 px-3 font-mono font-bold text-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenView(item)}
+                            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            title="View Invoice Details"
+                          >
+                            {item.invoiceNo}
+                          </button>
                         </td>
                         <td className="py-3 px-3 font-mono text-slate-600 text-[11px] max-w-[130px] truncate" title={item.opportunityOrder}>
                           {item.opportunityOrder}
@@ -2030,13 +2712,10 @@ export default function TaxInvoiceView({
                               <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 py-2 px-1 text-left animate-in fade-in duration-100">
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    setSelectedInvoiceDetail(item);
-                                    setActiveActionId(null);
-                                  }}
+                                  onClick={() => handleOpenView(item)}
                                   className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
                                 >
-                                  <Eye className="w-4 h-4 text-blue-600 stroke-[1.8]" />
+                                  <BookOpen className="w-4 h-4 text-slate-600 stroke-[1.8]" />
                                   <span>View</span>
                                 </button>
 
@@ -2045,20 +2724,20 @@ export default function TaxInvoiceView({
                                   onClick={() => handleOpenEdit(item)}
                                   className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
                                 >
-                                  <Edit3 className="w-4 h-4 text-blue-600 stroke-[1.8]" />
+                                  <Edit3 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
                                   <span>Edit</span>
                                 </button>
 
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    toast.success(`Printing Tax Invoice ${item.invoiceNo}...`);
+                                    handleOpenPdfPreview(item);
                                     setActiveActionId(null);
                                   }}
-                                  className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
+                                  className="w-full px-3 py-2 text-[13px] text-[#011635] hover:bg-slate-50 rounded-lg flex items-center gap-3 font-semibold transition cursor-pointer"
                                 >
-                                  <Printer className="w-4 h-4 text-slate-600 stroke-[1.8]" />
-                                  <span>Print</span>
+                                  <Printer className="w-4 h-4 text-[#16477A] stroke-[1.8]" />
+                                  <span>Print / PDF</span>
                                 </button>
 
                                 <div className="my-1 border-t border-slate-100" />
@@ -2129,189 +2808,15 @@ export default function TaxInvoiceView({
         </>
       )}
 
-      {/* ================= MODAL: VIEW INVOICE DETAIL ================= */}
-      {selectedInvoiceDetail && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-blue-600" />
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
-                    {selectedInvoiceDetail.invoiceNo}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    AL ZAYDAN INTERNATIONAL FZE &bull; Tax Invoice Details
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedInvoiceDetail(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs">
-              {/* Header Info Card */}
-              <div className="p-3.5 bg-slate-50 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Customer:</span>
-                  <span className="font-bold text-slate-800">{selectedInvoiceDetail.customer}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Opportunity/Order:</span>
-                  <span className="font-semibold text-slate-700">{selectedInvoiceDetail.opportunityOrder}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Reference Number:</span>
-                  <span className="font-mono font-bold text-blue-600">{selectedInvoiceDetail.referenceNumber || selectedInvoiceDetail.opportunityOrder || '—'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Invoice Date:</span>
-                  <span className="font-mono text-slate-700">{selectedInvoiceDetail.date}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Attention:</span>
-                  <span className="font-medium text-slate-700">{selectedInvoiceDetail.attention || 'Mr. shemeem'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Payment Location:</span>
-                  <span className="font-medium text-slate-700">{selectedInvoiceDetail.paymentLocation || 'Mussafah, Abu Dhabi'}</span>
-                </div>
-                {selectedInvoiceDetail.description && (
-                  <div className="sm:col-span-2 flex flex-col gap-0.5 pt-1 border-t border-slate-200/60">
-                    <span className="text-slate-500 text-[11px]">Description:</span>
-                    <span className="text-slate-700 font-medium">{selectedInvoiceDetail.description}</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Products Table */}
-              {selectedInvoiceDetail.products && selectedInvoiceDetail.products.length > 0 && (
-                <div className="border border-slate-200 rounded-xl overflow-hidden shadow-2xs">
-                  <div className="bg-slate-100/70 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                      <Package className="w-3.5 h-3.5 text-blue-600" />
-                      <span>Products / Items Details</span>
-                    </div>
-                    <span className="text-[11px] text-slate-500 font-mono">
-                      {selectedInvoiceDetail.products.length} {selectedInvoiceDetail.products.length === 1 ? 'item' : 'items'}
-                    </span>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[650px] text-left text-xs">
-                      <thead>
-                        <tr className="bg-slate-50 text-slate-600 font-bold text-[11px] border-b border-slate-200">
-                          <th className="py-2 px-3">Item Name</th>
-                          <th className="py-2 px-3">Code</th>
-                          <th className="py-2 px-3">Brand</th>
-                          <th className="py-2 px-3 text-center">QTY</th>
-                          <th className="py-2 px-3 text-right">Unit Price (AED)</th>
-                          <th className="py-2 px-3 text-right">Total (AED)</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {selectedInvoiceDetail.products.map((p, idx) => (
-                          <tr key={p.id || idx} className="hover:bg-slate-50/50">
-                            <td className="py-2 px-3 font-semibold text-slate-900">{p.itemName || '—'}</td>
-                            <td className="py-2 px-3 font-mono text-slate-600">{p.itemCode || '—'}</td>
-                            <td className="py-2 px-3 text-slate-700">{p.brand || '—'}</td>
-                            <td className="py-2 px-3 text-center font-bold text-slate-800">{p.quantity || 1}</td>
-                            <td className="py-2 px-3 text-right font-mono text-slate-700">
-                              {(parseFloat(p.price) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-2 px-3 text-right font-mono font-bold text-blue-700">
-                              {(parseFloat(p.total) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Overview Amount Cards */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Actual Price</span>
-                  <span className="text-xs font-mono font-bold text-slate-800">
-                    AED {(parseFloat(selectedInvoiceDetail.rawAmount) || 2000).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
-                  <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">VAT (5%)</span>
-                  <span className="text-xs font-mono font-bold text-slate-800">
-                    AED {((parseFloat(selectedInvoiceDetail.rawAmount) || 2000) * 0.05).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-center">
-                  <span className="block text-[10px] font-bold text-blue-800 uppercase tracking-wider">Total Invoice</span>
-                  <span className="text-xs font-mono font-extrabold text-blue-900">
-                    {selectedInvoiceDetail.amount}
-                  </span>
-                </div>
-              </div>
-
-              {/* Status and Balance Box */}
-              <div className="p-3 bg-blue-50/50 rounded-xl space-y-1.5 border border-blue-100">
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Payment Status:</span>
-                  <span className="font-bold text-amber-700">{selectedInvoiceDetail.status || 'Pending'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-600">Amount Paid:</span>
-                  <span className="font-mono text-emerald-600 font-bold">{selectedInvoiceDetail.paid || 'AED 0.00'}</span>
-                </div>
-                <div className="flex justify-between pt-1 border-t border-blue-200/60">
-                  <span className="font-bold text-slate-900">Outstanding Balance:</span>
-                  <span className="font-mono font-extrabold text-rose-600 text-sm">{selectedInvoiceDetail.balance || selectedInvoiceDetail.amount}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-5">
-              <span className="text-[11px] text-slate-400 font-medium">
-                support: shemin@alzaydanfze.com
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedInvoiceDetail(null)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 font-bold transition cursor-pointer text-xs"
-                >
-                  Close
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const itemToEdit = selectedInvoiceDetail;
-                    setSelectedInvoiceDetail(null);
-                    handleOpenEdit(itemToEdit);
-                  }}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs cursor-pointer text-xs flex items-center gap-1.5"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit Invoice</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    toast.success(`Tax Invoice ${selectedInvoiceDetail.invoiceNo} emailed to accounts.`);
-                    setSelectedInvoiceDetail(null);
-                  }}
-                  className="px-5 py-2 rounded-xl bg-[#011635] hover:bg-[#07244a] text-white font-bold transition shadow-xs cursor-pointer text-xs"
-                >
-                  Email Invoice
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ============================================================== */}
+      {/* COMMERCIAL TAX INVOICE A4 PDF DOCUMENT PREVIEW MODAL           */}
+      {/* ============================================================== */}
+      <CommercialDocumentPdfModal
+        isOpen={pdfPreviewModal.isOpen}
+        onClose={handleClosePdfPreview}
+        docType="TAX INVOICE"
+        data={pdfPreviewModal.data}
+      />
     </div>
   );
 }

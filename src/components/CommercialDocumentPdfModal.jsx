@@ -88,15 +88,21 @@ export function numberToAEDWords(amount) {
 export default function CommercialDocumentPdfModal({
   isOpen,
   onClose,
-  docType = 'QUOTATION', // 'QUOTATION' | 'OPPORTUNITY'
+  docType = 'QUOTATION', // 'QUOTATION' | 'OPPORTUNITY' | 'TAX INVOICE'
   data = null
 }) {
   const [zoomLevel, setZoomLevel] = useState(100);
 
   if (!isOpen || !data) return null;
 
+  const isInvoice =
+    docType === 'TAX INVOICE' ||
+    docType === 'TAX_INVOICE' ||
+    docType === 'INVOICE' ||
+    Boolean(data.invoiceNo || data.invoiceNumber);
+
   // Extract financial values
-  const rawAmt = parseFloat(String(data.amount || data.total || '0').replace(/[^0-9.]/g, '')) || 0;
+  const rawAmt = parseFloat(String(data.rawAmount || data.amount || data.total || '0').replace(/[^0-9.]/g, '')) || 0;
   const disc = parseFloat(String(data.discount || '0').replace(/[^0-9.]/g, '')) || 0;
   const netAmt = Math.max(0, rawAmt - disc);
   const vatRate = parseFloat(data.vatRate || data.vat || '5') || 5;
@@ -107,23 +113,35 @@ export default function CommercialDocumentPdfModal({
 
   // Extract reference number & filename
   const docNumber =
+    data.receiptNo ||
+    data.invoiceNo ||
+    data.invoiceNumber ||
+    data.orderNo ||
+    data.orderNumber ||
     data.quotationNumber ||
     data.quotationNo ||
     data.code ||
     data.opportunityNumber ||
-    (docType === 'QUOTATION' ? 'CTSQ#4340' : 'CTEQ#7539');
+    (isInvoice ? 'CTINV#15260' : (docType === 'SALES ORDER' || docType === 'SALES_ORDER') ? 'CTSO#3954' : docType === 'QUOTATION' ? 'CTSQ#4340' : 'CTEQ#7539');
 
-  const pdfFileName = `${docNumber}_${(data.quotationDate || data.opportunityDate || '20261120').replace(/[^0-9]/g, '')}.pdf`;
+  const pdfFileName = `${docNumber}_${(data.date || data.orderDate || data.invoiceDate || data.quotationDate || data.opportunityDate || '20261116').replace(/[^0-9]/g, '')}.pdf`;
 
   // Dates & representative
-  const docDate = data.quotationDate || data.opportunityDate || data.oppDate || data.date || '20-11-2026';
+  const docDate = data.orderDate || data.invoiceDate || data.date || data.quotationDate || data.opportunityDate || data.oppDate || '16-11-2026';
   const preparedBy = data.owner || data.opportunityOwner || data.preparedBy || 'Super Admin';
 
   // Customer details
   const customerName = data.customer || data.customerName || 'COMMERCIAL CLIENT';
-  const customerLocation = data.location || data.address || 'Dubai / UAE';
-  const contactPerson = data.contactPerson || data.primaryContact || data.pointOfContact || 'Procurement In-Charge';
+  const customerLocation = data.paymentLocation || data.location || data.address || 'Dubai / UAE';
+  const contactPerson = data.attention || data.contactPerson || data.primaryContact || data.pointOfContact || 'Procurement Department';
   const contactMobile = data.mobile || data.businessMobile || data.phone || '+971 50 123 4567';
+  const refNumber = data.referenceNumber || data.opportunityOrder || data.orderNo || data.quotationNumber || '—';
+  const paymentLocation = data.paymentLocation || 'Dubai, UAE';
+  const paymentStatus = data.status || 'Pending';
+  const rawAdv = parseFloat(String(data.rawPaid ?? data.advancePaid ?? data.paid ?? '0').replace(/[^0-9.]/g, '')) || 0;
+  const rawBal = parseFloat(String(data.rawBalance ?? data.balance ?? (totalAmt - rawAdv)).replace(/[^0-9.]/g, '')) || Math.max(0, totalAmt - rawAdv);
+  const amountPaid = `AED ${rawAdv.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const balanceDue = `AED ${rawBal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   // Line items list
   const productsList =
@@ -301,11 +319,16 @@ export default function CommercialDocumentPdfModal({
                 </div>
               </div>
 
-              {/* Center: Title (QUOTATION) in Al Zaydan Deep Navy (#011635) */}
+              {/* Center: Title in Al Zaydan Deep Navy (#011635) */}
               <div className="text-center pt-1">
                 <h1 className="text-xl sm:text-2xl font-black text-[#011635] tracking-widest uppercase">
-                  {docType}
+                  {isInvoice ? 'TAX INVOICE' : docType}
                 </h1>
+                {isInvoice && (
+                  <div className="text-[10px] text-slate-500 font-bold tracking-wider mt-0.5">
+                    TRN: 100 234 567 800 003
+                  </div>
+                )}
               </div>
 
               {/* Right: Contact Details */}
@@ -320,7 +343,7 @@ export default function CommercialDocumentPdfModal({
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Email : </span>
-                  <span className="text-[#16477A] font-semibold">info@alzaydan.ae</span>
+                  <span className="text-[#16477A] font-semibold">{isInvoice ? 'accounts@alzaydanfze.com' : 'info@alzaydan.ae'}</span>
                 </div>
                 <div>
                   <span className="font-semibold text-slate-500">Website : </span>
@@ -333,12 +356,12 @@ export default function CommercialDocumentPdfModal({
               </div>
             </div>
 
-            {/* 2. SECTION: | To and | Document Details with Al Zaydan Corporate Blue Bar (#16477A) */}
+            {/* 2. SECTION: | To / Bill To and | Document Details with Al Zaydan Corporate Blue Bar (#16477A) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 py-2 text-xs">
-              {/* Left Column: To */}
+              {/* Left Column: To / Bill To */}
               <div>
                 <div className="border-l-[3.5px] border-[#16477A] pl-2 text-xs font-bold text-[#16477A] uppercase tracking-wide">
-                  To
+                  {isInvoice ? 'Bill To (Customer)' : 'To'}
                 </div>
                 <div className="mt-2 text-xs font-bold text-slate-900 uppercase">
                   {customerName}
@@ -347,29 +370,63 @@ export default function CommercialDocumentPdfModal({
                   {customerLocation}
                 </div>
                 <div className="text-[11px] text-slate-700 mt-2">
-                  <span className="text-slate-500 font-medium">Attn : </span>
+                  <span className="text-slate-500 font-medium">{isInvoice ? 'Attention : ' : 'Attn : '}</span>
                   <span className="font-semibold text-slate-900">{contactPerson}</span>
                 </div>
-                <div className="text-[11px] text-slate-700 mt-0.5">
-                  <span className="text-slate-500 font-medium">Mobile : </span>
-                  <span className="font-mono text-slate-900">{contactMobile}</span>
-                </div>
+                {contactMobile && (
+                  <div className="text-[11px] text-slate-700 mt-0.5">
+                    <span className="text-slate-500 font-medium">Mobile : </span>
+                    <span className="font-mono text-slate-900">{contactMobile}</span>
+                  </div>
+                )}
+                {isInvoice && paymentLocation && (
+                  <div className="text-[11px] text-slate-700 mt-0.5">
+                    <span className="text-slate-500 font-medium">Payment Place : </span>
+                    <span className="text-slate-900 font-medium">{paymentLocation}</span>
+                  </div>
+                )}
               </div>
 
               {/* Right Column: Document Details */}
               <div>
                 <div className="border-l-[3.5px] border-[#16477A] pl-2 text-xs font-bold text-[#16477A] uppercase tracking-wide">
-                  Document Details
+                  {isInvoice ? 'Invoice Details' : 'Document Details'}
                 </div>
                 <div className="mt-2 space-y-1.5 text-[11px] text-slate-700">
                   <div className="flex">
-                    <span className="w-28 text-slate-500 font-medium">Number :</span>
+                    <span className="w-28 text-slate-500 font-medium">{isInvoice ? 'Invoice No :' : 'Number :'}</span>
                     <span className="font-bold font-mono text-slate-900">{docNumber}</span>
                   </div>
                   <div className="flex">
-                    <span className="w-28 text-slate-500 font-medium">Date :</span>
+                    <span className="w-28 text-slate-500 font-medium">{isInvoice ? 'Invoice Date :' : 'Date :'}</span>
                     <span className="font-bold text-slate-900">{docDate}</span>
                   </div>
+                  {refNumber && refNumber !== '—' && (
+                    <div className="flex">
+                      <span className="w-28 text-slate-500 font-medium">{isInvoice ? 'Ref / Order :' : 'Ref Order :'}</span>
+                      <span className="font-bold font-mono text-blue-700">{refNumber}</span>
+                    </div>
+                  )}
+                  {isInvoice && (
+                    <div className="flex">
+                      <span className="w-28 text-slate-500 font-medium">Status :</span>
+                      <span className={`font-bold ${paymentStatus === 'Paid' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                        {paymentStatus}
+                      </span>
+                    </div>
+                  )}
+                  {isInvoice && (
+                    <>
+                      <div className="flex">
+                        <span className="w-28 text-slate-500 font-medium">Advance Paid :</span>
+                        <span className="font-bold font-mono text-emerald-700">{amountPaid}</span>
+                      </div>
+                      <div className="flex">
+                        <span className="w-28 text-slate-500 font-medium">Due Amount :</span>
+                        <span className="font-bold font-mono text-rose-700">{balanceDue}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex">
                     <span className="w-28 text-slate-500 font-medium">Prepared By :</span>
                     <span className="font-bold text-slate-900">{preparedBy}</span>
@@ -411,12 +468,25 @@ export default function CommercialDocumentPdfModal({
                           {p.itemCode || '—'}
                         </td>
                         <td className="py-3 px-3 border-r border-slate-200">
-                          <div className="font-bold text-slate-900 uppercase">{p.itemName || 'Item'}</div>
-                          {p.description && (
-                            <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
-                              {p.description}
+                          <div className="flex items-center gap-2.5">
+                            {(p.image || (idx === 0 && (data.productImage1 || data.productImages?.[0]))) && (
+                              <div className="w-9 h-9 rounded border border-slate-200 bg-white p-0.5 shrink-0 overflow-hidden flex items-center justify-center">
+                                <img
+                                  src={p.image || data.productImage1 || data.productImages?.[0]}
+                                  alt={p.itemName || 'Item'}
+                                  className="max-w-full max-h-full object-contain"
+                                />
+                              </div>
+                            )}
+                            <div>
+                              <div className="font-bold text-slate-900 uppercase">{p.itemName || 'Item'}</div>
+                              {p.description && (
+                                <div className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+                                  {p.description}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          </div>
                         </td>
                         <td className="py-3 px-3 text-center text-slate-700 border-r border-slate-200">
                           {p.uom || 'Pcs'}
@@ -439,10 +509,47 @@ export default function CommercialDocumentPdfModal({
                 </tbody>
               </table>
 
-              {/* 4. FINANCIAL SUMMARY BLOCK: Bottom Right of Table */}
+              {/* 4. FINANCIAL SUMMARY BLOCK: Combined with Product Photos inside Table (Image 2) */}
               <div className="border-t border-slate-200 bg-white">
-                <div className="flex justify-end">
-                  <div className="w-80 divide-y divide-slate-100 text-xs">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch">
+                  {/* Left Side inside Table: Attached Product Images (Showing Both Uploaded Images) */}
+                  <div className="p-3 flex-1 border-b sm:border-b-0 sm:border-r border-slate-200 bg-slate-50/40 flex flex-col justify-center">
+                    {(data.productImage1 || data.productImage2 || (data.productImages && data.productImages.length > 0)) ? (
+                      <div>
+                        <div className="font-bold text-slate-800 text-[10.5px] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#16477A]"></span>
+                          <span>Product:</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          {(data.productImage1 || data.productImages?.[0]) && (
+                            <div className="w-24 h-20 rounded-md border border-slate-200 bg-white p-1 overflow-hidden flex items-center justify-center shadow-2xs">
+                              <img
+                                src={data.productImage1 || data.productImages?.[0]}
+                                alt="Product 1"
+                                className="max-w-full max-h-full object-contain"
+                              />
+                            </div>
+                          )}
+                          {(data.productImage2 || data.productImages?.[1]) && (
+                            <div className="w-24 h-20 rounded-md border border-slate-200 bg-white p-1 overflow-hidden flex items-center justify-center shadow-2xs">
+                              <img
+                                src={data.productImage2 || data.productImages?.[1]}
+                                alt="Product 2"
+                                className="max-w-full max-h-full object-contain"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 italic">
+                        Commercial goods supplied and verified as per approved order specification.
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Side inside Table: Totals & Calculations */}
+                  <div className="w-full sm:w-80 divide-y divide-slate-100 text-xs shrink-0">
                     <div className="flex justify-between py-2 px-4 text-slate-700">
                       <span className="font-bold">Total</span>
                       <span className="font-mono font-bold">

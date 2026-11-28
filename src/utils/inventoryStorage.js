@@ -26,15 +26,10 @@ export function saveDeletedInventoryIds(ids) {
 }
 
 export const DEFAULT_INVENTORY_CATEGORIES = [
-  { id: 'vrv_systems', name: 'VRV / VRF Systems', code: 'VRV' },
-  { id: 'chillers', name: 'Chillers & Cooling Plants', code: 'CHL' },
-  { id: 'ducted_splits', name: 'Ducted Split AC Units', code: 'DSP' },
-  { id: 'ventilation', name: 'Ventilation & Exhaust Fans', code: 'VNT' },
-  { id: 'controls', name: 'BMS Controls & Thermostats', code: 'CTR' },
-  { id: 'piping_valves', name: 'Piping, Valves & Fittings', code: 'PIP' },
-  { id: 'insulation', name: 'Thermal Insulation & Sheets', code: 'INS' },
-  { id: 'duct_accessories', name: 'Grilles, Diffusers & Dampers', code: 'DCT' },
-  { id: 'spare_parts', name: 'Compressors & Spare Parts', code: 'SPR' }
+  { id: 'general', name: 'General', code: 'GEN' },
+  { id: 'vehicles', name: 'Vehicles / Automotive', code: 'VEH' },
+  { id: 'spare_parts', name: 'Spare Parts & Accessories', code: 'SPR' },
+  { id: 'electronics', name: 'Electronics & Equipment', code: 'ELE' }
 ];
 
 export const INVENTORY_UNITS = [
@@ -187,9 +182,14 @@ export function getStoredCategories() {
     const raw = localStorage.getItem(INVENTORY_CATEGORIES_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // If it still contains legacy HVAC categories, replace with clean categories
+        const isLegacy = parsed.some(c => c.id === 'vrv_systems' || c.id === 'chillers');
+        if (!isLegacy) return parsed;
+      }
     }
   } catch {}
+  saveStoredCategories(DEFAULT_INVENTORY_CATEGORIES);
   return DEFAULT_INVENTORY_CATEGORIES;
 }
 
@@ -197,6 +197,24 @@ export function saveStoredCategories(categories) {
   try {
     localStorage.setItem(INVENTORY_CATEGORIES_KEY, JSON.stringify(categories));
   } catch {}
+}
+
+// Add a new custom category dynamically
+export function addInventoryCategory(name) {
+  const categories = getStoredCategories();
+  const cleanName = String(name || '').trim();
+  if (!cleanName) return null;
+  const id = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const existing = categories.find(c => c.id === id || c.name.toLowerCase() === cleanName.toLowerCase());
+  if (existing) return existing;
+  const newCat = {
+    id,
+    name: cleanName,
+    code: cleanName.slice(0, 3).toUpperCase()
+  };
+  const updated = [...categories, newCat];
+  saveStoredCategories(updated);
+  return newCat;
 }
 
 // Retrieve active inventory products
@@ -228,6 +246,7 @@ export function getStoredInventory() {
 export function sanitizeProduct(p) {
   const purchasePrice = parseFloat(p.purchase_price) || 0;
   const sellingPrice = parseFloat(p.selling_price) || 0;
+  const shippingCost = parseFloat(p.shipping_cost) || 0;
   const qty = parseInt(p.quantity, 10) || 0;
   const minStock = parseInt(p.min_stock, 10) || 5;
 
@@ -246,9 +265,12 @@ export function sanitizeProduct(p) {
     description: String(p.description || '').trim(),
     purchase_price: purchasePrice,
     selling_price: sellingPrice,
+    shipping_cost: shippingCost,
     quantity: qty,
     unit: String(p.unit || 'PCS').toUpperCase().trim(),
     min_stock: minStock,
+    product_image: p.product_image || '',
+    product_image2: p.product_image2 || '',
     status,
     created_at: p.created_at || new Date().toISOString().split('T')[0],
     updated_at: p.updated_at || new Date().toISOString().split('T')[0]

@@ -19,10 +19,12 @@ import {
   FileText,
   Printer,
   CheckCircle,
-  Package
+  Package,
+  BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
+import CommercialDocumentPdfModal from '../../../components/CommercialDocumentPdfModal';
 
 export default function SalesOrderView({
   employees = [],
@@ -79,6 +81,13 @@ export default function SalesOrderView({
   const [selectedOrderDetail, setSelectedOrderDetail] = useState(null);
   const [activeActionId, setActiveActionId] = useState(null);
   const [editingOrderId, setEditingOrderId] = useState(null);
+  const [pdfPreviewModal, setPdfPreviewModal] = useState({ isOpen: false, data: null });
+
+  const handleOpenPdfPreview = (order) => {
+    if (!order) return;
+    setPdfPreviewModal({ isOpen: true, data: order });
+  };
+  const handleClosePdfPreview = () => setPdfPreviewModal({ isOpen: false, data: null });
 
   // Close actions dropdown on outside click
   useEffect(() => {
@@ -1621,46 +1630,12 @@ export default function SalesOrderView({
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => toast.info('Print format selected')}
-                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print Format ▾</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toast.info('Exporting USD Sales Order...')}
-                  className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
-                >
-                  <Printer className="w-3.5 h-3.5" />
-                  <span>Print in USD</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toast.success(`Printing order ${selectedOrderDetail.orderNo}...`)}
+                  onClick={() => handleOpenPdfPreview(selectedOrderDetail)}
                   className="px-3.5 py-2 rounded-xl bg-[#10B981] hover:bg-emerald-600 text-white font-bold text-xs flex items-center gap-1 transition cursor-pointer shadow-xs"
                 >
                   <Printer className="w-3.5 h-3.5" />
                   <span>Print</span>
                 </button>
-                {selectedOrderDetail.orderStatus !== 'Approved' && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrders((prev) =>
-                        prev.map((o) =>
-                          o.id === selectedOrderDetail.id ? { ...o, orderStatus: 'Approved' } : o
-                        )
-                      );
-                      setSelectedOrderDetail((prev) => (prev ? { ...prev, orderStatus: 'Approved' } : prev));
-                      toast.success(`Sales Order "${selectedOrderDetail.orderNo}" approved successfully!`);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-[#00A389] hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                  >
-                    <CheckCircle className="w-3.5 h-3.5" />
-                    <span>Approve Order</span>
-                  </button>
-                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -2981,14 +2956,14 @@ export default function SalesOrderView({
                             </button>
 
                             {activeActionId === item.id && (
-                              <div className="absolute right-0 mt-1.5 w-44 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 py-2 px-1 text-left animate-in fade-in duration-100">
+                              <div className="absolute right-0 mt-1.5 w-48 bg-white rounded-xl shadow-xl border border-slate-200/90 z-30 py-2 px-1 text-left animate-in fade-in duration-100">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenView(item)}
                                   className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
                                 >
-                                  <Eye className="w-4 h-4 text-blue-600 stroke-[1.8]" />
-                                  <span>View Order</span>
+                                  <BookOpen className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                  <span>View</span>
                                 </button>
 
                                 <button
@@ -2999,8 +2974,20 @@ export default function SalesOrderView({
                                   }}
                                   className="w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 rounded-lg flex items-center gap-3 font-medium transition cursor-pointer"
                                 >
-                                  <Edit3 className="w-4 h-4 text-blue-600 stroke-[1.8]" />
-                                  <span>Edit Order</span>
+                                  <Edit3 className="w-4 h-4 text-slate-600 stroke-[1.8]" />
+                                  <span>Edit</span>
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleOpenPdfPreview(item);
+                                    setActiveActionId(null);
+                                  }}
+                                  className="w-full px-3 py-2 text-[13px] text-[#011635] hover:bg-slate-50 rounded-lg flex items-center gap-3 font-semibold transition cursor-pointer"
+                                >
+                                  <Printer className="w-4 h-4 text-[#16477A] stroke-[1.8]" />
+                                  <span>Print / PDF</span>
                                 </button>
 
                                 <div className="my-1 border-t border-slate-100" />
@@ -3117,6 +3104,15 @@ export default function SalesOrderView({
           </div>
         </div>
       )}
+      {/* ============================================================== */}
+      {/* COMMERCIAL SALES ORDER A4 PDF DOCUMENT PREVIEW MODAL           */}
+      {/* ============================================================== */}
+      <CommercialDocumentPdfModal
+        isOpen={pdfPreviewModal.isOpen}
+        onClose={handleClosePdfPreview}
+        docType="SALES ORDER"
+        data={pdfPreviewModal.data}
+      />
     </div>
   );
 }

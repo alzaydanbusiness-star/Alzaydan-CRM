@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Boxes,
   Plus,
@@ -17,12 +17,21 @@ import {
   FileSpreadsheet,
   RefreshCw,
   PlusCircle,
-  MinusCircle
+  MinusCircle,
+  Upload,
+  Image as ImageIcon,
+  Tag,
+  DollarSign,
+  Truck,
+  Check,
+  Layers,
+  ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   getStoredInventory,
   getStoredCategories,
+  addInventoryCategory,
   saveStoredInventory,
   addInventoryProduct,
   updateInventoryProduct,
@@ -40,27 +49,40 @@ export default function InventoryView() {
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [sortBy, setSortBy] = useState('id-asc'); // 'name-asc' | 'price-desc' | 'qty-asc' | 'qty-desc'
 
-  // Modal States
-  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  // View Mode: 'list' (inventory table) | 'form' (full-page Add/Edit view)
+  const [viewMode, setViewMode] = useState('list');
   const [editingProduct, setEditingProduct] = useState(null); // null = Add, obj = Edit
+
+  // Quick Adjust & Delete Modals (these remain quick modals)
   const [adjustModalProduct, setAdjustModalProduct] = useState(null);
   const [adjustQtyInput, setAdjustQtyInput] = useState('');
   const [adjustType, setAdjustType] = useState('add'); // 'add' | 'deduct'
   const [deleteCandidate, setDeleteCandidate] = useState(null);
 
+  // Dynamic Category Creation state
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
   // Form State
   const initialFormState = {
     product_name: '',
-    product_code: '',
-    category_id: categories[0]?.id || 'vrv_systems',
+    product_code: '', // Empty by default as requested (no PRD-2026-0001 prefill)
+    category_id: categories[0]?.id || 'general',
     description: '',
     purchase_price: '',
+    shipping_cost: '', // Shipping cost field requested
     selling_price: '',
     quantity: '',
     unit: 'PCS',
-    min_stock: '5'
+    min_stock: '5',
+    product_image: '', // Primary image
+    product_image2: '' // Secondary / detail image
   };
   const [formData, setFormData] = useState(initialFormState);
+
+  // Hidden file input refs for 2 image uploads
+  const imageInputRef1 = useRef(null);
+  const imageInputRef2 = useRef(null);
 
   // Pull cloud inventory in background on mount
   useEffect(() => {
@@ -76,6 +98,7 @@ export default function InventoryView() {
   useEffect(() => {
     const handleUpdate = () => {
       setProducts(getStoredInventory());
+      setCategories(getStoredCategories());
     };
     window.addEventListener('alzaydan_inventory_updated', handleUpdate);
     window.addEventListener('storage', handleUpdate);
@@ -85,31 +108,90 @@ export default function InventoryView() {
     };
   }, []);
 
-  // Open modal for Create
-  const handleOpenCreateModal = () => {
+  // Open Full-Page Create Form
+  const handleOpenCreateForm = () => {
     setEditingProduct(null);
     setFormData({
       ...initialFormState,
-      product_code: `PRD-2026-${String(products.length + 1).padStart(4, '0')}`
+      category_id: categories[0]?.id || 'general',
+      product_code: '' // Blank SKU as requested
     });
-    setIsFormModalOpen(true);
+    setIsAddingCategory(false);
+    setNewCategoryName('');
+    setViewMode('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Open modal for Edit
-  const handleOpenEditModal = (product) => {
+  // Open Full-Page Edit Form
+  const handleOpenEditForm = (product) => {
     setEditingProduct(product);
     setFormData({
-      product_name: product.product_name,
-      product_code: product.product_code,
-      category_id: product.category_id,
+      product_name: product.product_name || '',
+      product_code: product.product_code || '',
+      category_id: product.category_id || categories[0]?.id || 'general',
       description: product.description || '',
-      purchase_price: String(product.purchase_price),
-      selling_price: String(product.selling_price),
-      quantity: String(product.quantity),
+      purchase_price: product.purchase_price !== undefined ? String(product.purchase_price) : '',
+      shipping_cost: product.shipping_cost !== undefined ? String(product.shipping_cost) : '',
+      selling_price: product.selling_price !== undefined ? String(product.selling_price) : '',
+      quantity: product.quantity !== undefined ? String(product.quantity) : '',
       unit: product.unit || 'PCS',
-      min_stock: String(product.min_stock || 5)
+      min_stock: String(product.min_stock || 5),
+      product_image: product.product_image || '',
+      product_image2: product.product_image2 || ''
     });
-    setIsFormModalOpen(true);
+    setIsAddingCategory(false);
+    setNewCategoryName('');
+    setViewMode('form');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Handle dynamic category addition
+  const handleCreateCategory = (e) => {
+    if (e) e.preventDefault();
+    const trimmed = newCategoryName.trim();
+    if (!trimmed) {
+      toast.error('Please enter a category name');
+      return;
+    }
+    const created = addInventoryCategory(trimmed);
+    if (created) {
+      const updatedCats = getStoredCategories();
+      setCategories(updatedCats);
+      setFormData((prev) => ({ ...prev, category_id: created.id }));
+      setNewCategoryName('');
+      setIsAddingCategory(false);
+      toast.success(`Category "${created.name}" created and selected!`);
+    }
+  };
+
+  // Handle image upload with Base64 encoding
+  const handleImageFileChange = (field, e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file (PNG, JPG, WEBP)');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Image size cannot exceed 5MB');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setFormData((prev) => ({ ...prev, [field]: reader.result }));
+      toast.success(
+        field === 'product_image' ? 'Primary product image loaded' : 'Detail/secondary image loaded'
+      );
+    };
+    reader.readAsDataURL(file);
+    // Reset file input value so re-selecting same file triggers onChange
+    e.target.value = '';
+  };
+
+  const handleRemoveImage = (field) => {
+    setFormData((prev) => ({ ...prev, [field]: '' }));
   };
 
   // Save / Update submission
@@ -119,18 +201,12 @@ export default function InventoryView() {
       toast.error('Please enter product name');
       return;
     }
-    if (!formData.product_code.trim()) {
-      toast.error('Please enter product code');
-      return;
-    }
-    const purchasePrice = parseFloat(formData.purchase_price);
+
+    const purchasePrice = parseFloat(formData.purchase_price) || 0;
+    const shippingCost = parseFloat(formData.shipping_cost) || 0;
     const sellingPrice = parseFloat(formData.selling_price);
     const qty = parseInt(formData.quantity, 10);
 
-    if (isNaN(purchasePrice) || purchasePrice < 0) {
-      toast.error('Please enter a valid purchase price');
-      return;
-    }
     if (isNaN(sellingPrice) || sellingPrice < 0) {
       toast.error('Please enter a valid selling price');
       return;
@@ -140,16 +216,25 @@ export default function InventoryView() {
       return;
     }
 
+    // If user provided a code, use it. If left blank, generate clean SKU
+    let productCode = formData.product_code.trim().toUpperCase();
+    if (!productCode) {
+      productCode = `PRD-${Date.now().toString().slice(-6)}`;
+    }
+
     const payload = {
       product_name: formData.product_name.trim(),
-      product_code: formData.product_code.trim().toUpperCase(),
+      product_code: productCode,
       category_id: formData.category_id,
       description: formData.description.trim(),
       purchase_price: purchasePrice,
+      shipping_cost: shippingCost,
       selling_price: sellingPrice,
       quantity: qty,
       unit: formData.unit,
-      min_stock: parseInt(formData.min_stock, 10) || 5
+      min_stock: parseInt(formData.min_stock, 10) || 5,
+      product_image: formData.product_image || '',
+      product_image2: formData.product_image2 || ''
     };
 
     if (editingProduct) {
@@ -164,7 +249,7 @@ export default function InventoryView() {
       toast.success(`Product "${created.product_name}" added to inventory!`);
     }
 
-    setIsFormModalOpen(false);
+    setViewMode('list');
   };
 
   // Quick Stock Adjustment submission
@@ -180,7 +265,9 @@ export default function InventoryView() {
     if (updated) {
       setProducts(getStoredInventory());
       toast.success(
-        `Stock for "${adjustModalProduct.product_code}" ${adjustType === 'add' ? 'increased' : 'decreased'} by ${amount} ${adjustModalProduct.unit}`
+        `Stock for "${adjustModalProduct.product_code}" ${
+          adjustType === 'add' ? 'increased' : 'decreased'
+        } by ${amount} ${adjustModalProduct.unit}`
       );
     }
     setAdjustModalProduct(null);
@@ -209,6 +296,7 @@ export default function InventoryView() {
       'Category',
       'Description',
       'Purchase Price (AED)',
+      'Shipping Cost (AED)',
       'Selling Price (AED)',
       'Quantity',
       'Unit',
@@ -217,14 +305,15 @@ export default function InventoryView() {
     ];
     const rows = filteredProducts.map((p) => {
       const categoryName = categories.find((c) => c.id === p.category_id)?.name || p.category_id;
-      const valuation = (p.purchase_price * p.quantity).toFixed(2);
+      const valuation = ((p.purchase_price + (p.shipping_cost || 0)) * p.quantity).toFixed(2);
       return [
         p.id,
         `"${p.product_code}"`,
         `"${p.product_name.replace(/"/g, '""')}"`,
         `"${categoryName}"`,
         `"${(p.description || '').replace(/"/g, '""')}"`,
-        p.purchase_price.toFixed(2),
+        (p.purchase_price || 0).toFixed(2),
+        (p.shipping_cost || 0).toFixed(2),
         p.selling_price.toFixed(2),
         p.quantity,
         p.unit,
@@ -279,12 +368,517 @@ export default function InventoryView() {
       });
   }, [products, searchQuery, selectedCategory, selectedStatus, sortBy]);
 
-  // Live profit calculation for modal
-  const modalPurchase = parseFloat(formData.purchase_price) || 0;
-  const modalSelling = parseFloat(formData.selling_price) || 0;
-  const modalProfit = modalSelling - modalPurchase;
-  const modalMarginPct = modalSelling > 0 ? ((modalProfit / modalSelling) * 100).toFixed(1) : '0.0';
+  // =========================================================================
+  // VIEW MODE: FULL-PAGE FORM (Add or Edit Product)
+  // =========================================================================
+  if (viewMode === 'form') {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-200 pb-12">
+        {/* Top Header & Breadcrumb Bar */}
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="w-10 h-10 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center transition-colors cursor-pointer border border-slate-200"
+                title="Back to Inventory"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </button>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-400">Inventory</span>
+                  <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-xs font-bold text-blue-700">
+                    {editingProduct ? 'Edit Product' : 'Add New Product'}
+                  </span>
+                </div>
+                <h1 className="text-xl sm:text-2xl font-extrabold text-[#002B66] tracking-tight mt-0.5">
+                  {editingProduct ? `Edit Product: ${editingProduct.product_name}` : 'Add New Inventory Product'}
+                </h1>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Enter product specifications, custom SKU, pricing structure, shipping costs, and product photos.
+                </p>
+              </div>
+            </div>
 
+            <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <X className="w-4 h-4 text-slate-500" />
+                <span>Cancel</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleFormSubmit}
+                className="px-5 py-2.5 rounded-xl bg-[#003579] hover:bg-[#002B66] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:shadow"
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingProduct ? 'Update Product' : 'Save Product'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Full-Page Form */}
+        <form onSubmit={handleFormSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left 7 Columns: Product Details & Description */}
+            <div className="lg:col-span-7 space-y-6">
+              {/* Card 1: Core Product Information */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <Boxes className="w-4 h-4 text-blue-600" />
+                    <span>General Information</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">Required fields marked with *</span>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* Product Name */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700 flex items-center gap-1">
+                      <span>Product Name</span>
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Daikin VRV-IV X Heat Pump Outdoor Unit 16HP"
+                      value={formData.product_name}
+                      onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
+                      className="w-full h-10 px-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                      required
+                    />
+                  </div>
+
+                  {/* SKU & Category Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Product Code / SKU (starts empty, user enters their own code) */}
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-700 flex items-center justify-between">
+                        <span>Product Code / SKU</span>
+                        <span className="text-[10px] font-normal text-slate-400">Optional custom code</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. SKU-10024 or custom code"
+                        value={formData.product_code}
+                        onChange={(e) =>
+                          setFormData({ ...formData, product_code: e.target.value.toUpperCase() })
+                        }
+                        className="w-full h-10 px-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-blue-700 placeholder:text-slate-400 placeholder:font-normal focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                      />
+                    </div>
+
+                    {/* Category with clean list + inline "+ New" Category Creator */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-700 flex items-center gap-1">
+                          <span>Category</span>
+                          <span className="text-red-500">*</span>
+                        </label>
+                        {!isAddingCategory && (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingCategory(true)}
+                            className="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3 stroke-[2.5]" />
+                            <span>+ New</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {isAddingCategory ? (
+                        <div className="flex items-center gap-1.5 animate-in fade-in duration-150">
+                          <input
+                            type="text"
+                            placeholder="New category name..."
+                            autoFocus
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                handleCreateCategory();
+                              }
+                            }}
+                            className="flex-1 h-10 px-3 bg-white border border-blue-400 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-hidden"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleCreateCategory}
+                            className="h-10 px-3 bg-[#003579] hover:bg-[#002B66] text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-2xs"
+                          >
+                            Add
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsAddingCategory(false);
+                              setNewCategoryName('');
+                            }}
+                            className="h-10 px-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-semibold cursor-pointer transition"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <select
+                          value={formData.category_id}
+                          onChange={(e) => {
+                            if (e.target.value === '__NEW__') {
+                              setIsAddingCategory(true);
+                            } else {
+                              setFormData({ ...formData, category_id: e.target.value });
+                            }
+                          }}
+                          className="w-full h-10 px-3 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all cursor-pointer"
+                        >
+                          {categories.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                          <option value="__NEW__" className="text-blue-600 font-bold">
+                            + Add New Category...
+                          </option>
+                        </select>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stock Quantity, Unit, and Min Stock Alert */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-1">
+                    {/* Quantity */}
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-700 flex items-center gap-1">
+                        <span>Initial Quantity</span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="0"
+                        value={formData.quantity}
+                        onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                        className="w-full h-10 px-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-extrabold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                        required
+                      />
+                    </div>
+
+                    {/* Unit */}
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-700 flex items-center gap-1">
+                        <span>Measurement Unit</span>
+                        <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={formData.unit}
+                        onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                        className="w-full h-10 px-3 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:border-blue-600 cursor-pointer"
+                      >
+                        {INVENTORY_UNITS.map((u) => (
+                          <option key={u} value={u}>
+                            {u}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Min Stock Alert */}
+                    <div className="space-y-1.5">
+                      <label className="font-bold text-slate-700">
+                        <span>Low Stock Alert</span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="5"
+                        value={formData.min_stock}
+                        onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
+                        className="w-full h-10 px-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 transition-all"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 2: Technical Description */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs space-y-4">
+                <div className="flex items-center gap-2 text-slate-800 font-bold text-sm border-b border-slate-100 pb-3">
+                  <Layers className="w-4 h-4 text-blue-600" />
+                  <span>Product Description &amp; Technical Specifications</span>
+                </div>
+
+                <div className="space-y-1.5 text-xs">
+                  <textarea
+                    rows={5}
+                    placeholder="Enter detailed product description, specifications, dimensions, serial tags, warranty, origin, or customer guidance notes..."
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full p-4 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all resize-none leading-relaxed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Right 5 Columns: Pricing, Shipping Cost, Profit Breakdown, and 2 Image Uploads */}
+            <div className="lg:col-span-5 space-y-6">
+              {/* Card 3: Pricing & Shipping Details */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs space-y-5">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <DollarSign className="w-4 h-4 text-blue-600" />
+                    <span>Pricing &amp; Shipping (AED)</span>
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                    AED Currency
+                  </span>
+                </div>
+
+                <div className="space-y-4 text-xs">
+                  {/* Purchase Price (Cost to Company) */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700 flex items-center justify-between">
+                      <span>Purchase Price (AED)</span>
+                      <span className="text-[10px] font-semibold text-slate-400">Supplier / Cost</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                        AED
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.purchase_price}
+                        onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                        className="w-full h-10 pl-14 pr-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Selling Price */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700 flex items-center gap-1">
+                      <span>Selling Price (AED)</span>
+                      <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                        AED
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.selling_price}
+                        onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
+                        className="w-full h-10 pl-14 pr-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  {/* Shipping Price / Cost Field */}
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700 flex items-center gap-1.5">
+                      <Truck className="w-3.5 h-3.5 text-blue-600" />
+                      <span>Shipping Price / Cost (AED)</span>
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 font-mono">
+                        AED
+                      </span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={formData.shipping_cost}
+                        onChange={(e) => setFormData({ ...formData, shipping_cost: e.target.value })}
+                        className="w-full h-10 pl-14 pr-3.5 bg-slate-50/50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all"
+                      />
+                    </div>
+                    <p className="text-[10px] text-slate-400">
+                      Standard freight, local delivery, or handling cost associated with this item.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Two Product Image Uploads */}
+              <div className="bg-white rounded-2xl p-6 border border-slate-200/90 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-slate-800 font-bold text-sm">
+                    <ImageIcon className="w-4 h-4 text-blue-600" />
+                    <span>Product Images (2 Upload Slots)</span>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-400">PNG, JPG up to 5MB</span>
+                </div>
+
+                {/* Hidden File Inputs */}
+                <input
+                  type="file"
+                  ref={imageInputRef1}
+                  accept="image/*"
+                  onChange={(e) => handleImageFileChange('product_image', e)}
+                  className="hidden"
+                />
+                <input
+                  type="file"
+                  ref={imageInputRef2}
+                  accept="image/*"
+                  onChange={(e) => handleImageFileChange('product_image2', e)}
+                  className="hidden"
+                />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Slot 1: Primary Image */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">1. Primary Photo</span>
+                      {formData.product_image && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage('product_image')}
+                          className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.product_image ? (
+                      <div className="relative group rounded-xl border border-slate-200 bg-slate-50 overflow-hidden h-36 flex items-center justify-center">
+                        <img
+                          src={formData.product_image}
+                          alt="Primary Product"
+                          className="w-full h-full object-contain p-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef1.current?.click()}
+                          className="absolute inset-0 bg-slate-900/40 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center font-bold text-xs gap-1 cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4" />
+                          <span>Change Photo</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => imageInputRef1.current?.click()}
+                        className="h-36 rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 flex flex-col items-center justify-center p-3 text-center transition cursor-pointer group"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-white group-hover:bg-blue-100 text-slate-400 group-hover:text-blue-600 flex items-center justify-center shadow-2xs transition mb-1.5">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700 group-hover:text-blue-700">
+                          Upload Main Image
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">Click or drag file</span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Slot 2: Detail / Secondary Image */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-700">2. Detail / Spec Photo</span>
+                      {formData.product_image2 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage('product_image2')}
+                          className="text-[11px] text-rose-600 hover:text-rose-800 font-bold flex items-center gap-0.5 cursor-pointer"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                          <span>Remove</span>
+                        </button>
+                      )}
+                    </div>
+
+                    {formData.product_image2 ? (
+                      <div className="relative group rounded-xl border border-slate-200 bg-slate-50 overflow-hidden h-36 flex items-center justify-center">
+                        <img
+                          src={formData.product_image2}
+                          alt="Detail Product"
+                          className="w-full h-full object-contain p-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => imageInputRef2.current?.click()}
+                          className="absolute inset-0 bg-slate-900/40 text-white opacity-0 group-hover:opacity-100 transition flex items-center justify-center font-bold text-xs gap-1 cursor-pointer"
+                        >
+                          <Upload className="w-4 h-4" />
+                          <span>Change Photo</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => imageInputRef2.current?.click()}
+                        className="h-36 rounded-xl border-2 border-dashed border-slate-200 hover:border-blue-400 bg-slate-50/50 hover:bg-blue-50/30 flex flex-col items-center justify-center p-3 text-center transition cursor-pointer group"
+                      >
+                        <div className="w-9 h-9 rounded-full bg-white group-hover:bg-blue-100 text-slate-400 group-hover:text-blue-600 flex items-center justify-center shadow-2xs transition mb-1.5">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-700 group-hover:text-blue-700">
+                          Upload Detail Image
+                        </span>
+                        <span className="text-[10px] text-slate-400 mt-0.5">Click or drag file</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Sticky Action Bar */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className="px-5 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
+            >
+              <ArrowLeft className="w-4 h-4 text-slate-500" />
+              <span>Back to Products List</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-6 py-2.5 rounded-xl bg-[#003579] hover:bg-[#002B66] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:shadow"
+              >
+                <Check className="w-4 h-4" />
+                <span>{editingProduct ? 'Update Product' : 'Add Product'}</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // =========================================================================
+  // VIEW MODE: INVENTORY PRODUCTS LIST / TABLE
+  // =========================================================================
   return (
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* ============================================================== */}
@@ -293,15 +887,15 @@ export default function InventoryView() {
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/90 shadow-2xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#011635] to-[#04336e] text-white flex items-center justify-center shadow-md shadow-[#011635]/20">
-              <Boxes className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-blue-50 text-[#003579] border border-blue-100 flex items-center justify-center">
+              <Boxes className="w-5 h-5 text-[#003579]" />
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 tracking-tight">
                 Inventory &amp; Stock Management
               </h1>
               <p className="text-xs text-slate-500 mt-0.5">
-                Manage products, product codes, categories, selling prices, and live warehouse inventory.
+                Manage products, SKU codes, categories, pricing, purchase costs, and warehouse stock.
               </p>
             </div>
           </div>
@@ -318,8 +912,8 @@ export default function InventoryView() {
 
             <button
               type="button"
-              onClick={handleOpenCreateModal}
-              className="px-4 py-2.5 rounded-xl bg-[#011635] hover:bg-[#03234d] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:shadow"
+              onClick={handleOpenCreateForm}
+              className="px-4 py-2.5 rounded-xl bg-[#003579] hover:bg-[#002B66] text-white text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:shadow"
             >
               <Plus className="w-4 h-4" />
               <span>Add Product</span>
@@ -411,16 +1005,16 @@ export default function InventoryView() {
       <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200/90 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
+            <thead className="border-b border-slate-200/80 bg-slate-50/80 text-[11px] font-bold text-slate-600 tracking-tight">
               <tr>
-                <th className="py-3 px-3.5 text-center w-12">#</th>
-                <th className="py-3 px-3.5">Product Code</th>
-                <th className="py-3 px-3.5 min-w-[240px]">Product Name &amp; Description</th>
-                <th className="py-3 px-3.5">Category</th>
-                <th className="py-3 px-3.5 text-right">Selling Price</th>
-                <th className="py-3 px-3.5 text-center">Margin</th>
-                <th className="py-3 px-3.5 text-center">Stock / Unit</th>
-                <th className="py-3 px-3.5 text-center min-w-[200px]">Actions</th>
+                <th className="py-3 px-4 text-center w-12 text-slate-500">#</th>
+                <th className="py-3 px-4">Product Code</th>
+                <th className="py-3 px-4 min-w-[240px]">Product</th>
+                <th className="py-3 px-4">Category</th>
+                <th className="py-3 px-4 text-right">Selling Price</th>
+                <th className="py-3 px-4 text-center">Purchase Price</th>
+                <th className="py-3 px-4 text-center">Stock / Unit</th>
+                <th className="py-3 px-4 text-center min-w-[160px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -430,16 +1024,15 @@ export default function InventoryView() {
                     <Boxes className="w-10 h-10 mx-auto text-slate-300 mb-2 stroke-1" />
                     <div className="font-bold text-slate-700 text-sm">No products found</div>
                     <div className="text-xs text-slate-400 mt-0.5">
-                      {searchQuery ? 'Try clearing your search or filters' : 'Click "Add Product" to create your first inventory item'}
+                      {searchQuery
+                        ? 'Try clearing your search or filters'
+                        : 'Click "Add Product" to create your first inventory item'}
                     </div>
                   </td>
                 </tr>
               ) : (
                 filteredProducts.map((p, idx) => {
                   const categoryObj = categories.find((c) => c.id === p.category_id);
-                  const marginAmount = p.selling_price - p.purchase_price;
-                  const marginPct =
-                    p.selling_price > 0 ? ((marginAmount / p.selling_price) * 100).toFixed(1) : '0.0';
 
                   let statusBadge = (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
@@ -465,55 +1058,68 @@ export default function InventoryView() {
 
                   return (
                     <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
-                      {/* ID */}
-                      <td className="py-3 px-3.5 text-center font-mono font-bold text-slate-400 text-[11px]">
-                        #{String(p.id).padStart(2, '0')}
+                      {/* # / Index */}
+                      <td className="py-3 px-4 text-center font-medium text-slate-400 text-xs">
+                        {String(idx + 1).padStart(2, '0')}
                       </td>
 
                       {/* Product Code */}
-                      <td className="py-3 px-3.5">
-                        <span className="font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded text-[11px] border border-blue-200/60">
-                          {p.product_code}
+                      <td className="py-3 px-4">
+                        <span className="font-mono text-xs font-semibold text-slate-800 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          {p.product_code || '—'}
                         </span>
                       </td>
 
-                      {/* Product Name & Description */}
-                      <td className="py-3 px-3.5">
-                        <div className="font-bold text-slate-900 hover:text-blue-600 transition-colors">
-                          {p.product_name}
-                        </div>
-                        {p.description && (
-                          <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 max-w-md">
-                            {p.description}
+                      {/* Product Name, Thumbnail & Description */}
+                      <td className="py-3 px-4">
+                        <div className="flex items-center gap-2.5">
+                          {p.product_image ? (
+                            <img
+                              src={p.product_image}
+                              alt={p.product_name}
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg border border-slate-200 bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
+                              <Boxes className="w-5 h-5 stroke-1" />
+                            </div>
+                          )}
+                          <div className="min-w-0">
+                            <div className="font-bold text-slate-900 hover:text-blue-600 transition-colors truncate max-w-sm">
+                              {p.product_name}
+                            </div>
+                            {p.description && (
+                              <div className="text-[11px] text-slate-500 line-clamp-1 mt-0.5 max-w-sm">
+                                {p.description}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
                       </td>
 
                       {/* Category */}
-                      <td className="py-3 px-3.5">
-                        <span className="px-2.5 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <td className="py-3 px-4">
+                        <span className="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                           {categoryObj?.name || p.category_id}
                         </span>
                       </td>
 
                       {/* Selling Price */}
-                      <td className="py-3 px-3.5 text-right font-mono font-bold text-slate-900">
-                        AED {p.selling_price.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td className="py-3 px-4 text-right font-mono font-bold text-slate-900">
+                        AED{' '}
+                        {(p.selling_price || 0).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
                       </td>
 
-                      {/* Margin */}
-                      <td className="py-3 px-3.5 text-center">
-                        <span
-                          className={`font-mono text-[11px] font-bold ${
-                            marginAmount >= 0 ? 'text-emerald-700' : 'text-rose-600'
-                          }`}
-                        >
-                          {marginAmount >= 0 ? `+${marginPct}%` : `${marginPct}%`}
-                        </span>
+                      {/* Purchase Price (Hidden as simple '-') */}
+                      <td className="py-3 px-4 text-center font-mono font-bold text-slate-400 text-sm">
+                        -
                       </td>
 
                       {/* Quantity & Unit */}
-                      <td className="py-3 px-3.5 text-center">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex flex-col items-center gap-1">
                           <span className="font-extrabold text-slate-900 text-xs">
                             {p.quantity}{' '}
@@ -526,7 +1132,7 @@ export default function InventoryView() {
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3 px-3.5 text-center">
+                      <td className="py-3 px-4 text-center">
                         <div className="flex items-center justify-center gap-1.5">
                           {/* Quick Adjust Button */}
                           <button
@@ -542,10 +1148,10 @@ export default function InventoryView() {
                             <ArrowUpDown className="w-3.5 h-3.5" />
                           </button>
 
-                          {/* Edit Button */}
+                          {/* Edit Button -> Opens Full Page Form */}
                           <button
                             type="button"
-                            onClick={() => handleOpenEditModal(p)}
+                            onClick={() => handleOpenEditForm(p)}
                             className="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white border border-blue-200 hover:border-blue-600 transition-all font-semibold flex items-center gap-1 cursor-pointer shadow-2xs text-[11px]"
                             title="Edit Product"
                           >
@@ -584,242 +1190,12 @@ export default function InventoryView() {
       </div>
 
       {/* ============================================================== */}
-      {/* 4. MODAL: ADD / EDIT PRODUCT                                   */}
-      {/* ============================================================== */}
-      {isFormModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] flex flex-col">
-            {/* Modal Sticky Header with Closing Arrow on Top Right */}
-            <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-xs px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-700 flex items-center justify-center font-bold">
-                  <Boxes className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="font-bold text-sm text-slate-900">
-                    {editingProduct ? 'Edit Inventory Product' : 'Add New Inventory Product'}
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    {editingProduct ? `Updating SKU: ${editingProduct.product_code}` : 'Enter product details, pricing, and stock quantity'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Closing Arrow & Close Button on Top Right */}
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsFormModalOpen(false)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-                  title="Close form"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Back</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsFormModalOpen(false)}
-                  className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-600 hover:text-white text-red-600 flex items-center justify-center transition-colors cursor-pointer border border-red-200/60 shadow-2xs"
-                  title="Close"
-                >
-                  <X className="w-4 h-4 stroke-[2.5]" />
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Form Content */}
-            <form onSubmit={handleFormSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* 1. Product Name */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="font-bold text-slate-700">
-                    Product Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Daikin VRV-IV X Heat Pump Outdoor Unit 16HP"
-                    value={formData.product_name}
-                    onChange={(e) => setFormData({ ...formData, product_name: e.target.value })}
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                {/* 2. Product Code (SKU) */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Product Code / SKU <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g. VRV-IV-16HP"
-                    value={formData.product_code}
-                    onChange={(e) => setFormData({ ...formData, product_code: e.target.value.toUpperCase() })}
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-blue-700 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                {/* 3. Category ID */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Category <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.category_id}
-                    onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
-                    className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-blue-500"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. Purchase Price */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Purchase Price (AED) <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                      AED
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={formData.purchase_price}
-                      onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
-                      className="w-full h-9 pl-12 pr-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-semibold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* 5. Selling Price */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Selling Price (AED) <span className="text-red-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
-                      AED
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={formData.selling_price}
-                      onChange={(e) => setFormData({ ...formData, selling_price: e.target.value })}
-                      className="w-full h-9 pl-12 pr-3 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-slate-900 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
-                      required
-                    />
-                  </div>
-                </div>
-
-                {/* Live Margin Calculation Card */}
-                <div className="sm:col-span-2 p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold text-slate-600">Calculated Profit Per Unit:</span>
-                    <span className={`font-mono font-extrabold ${modalProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                      AED {modalProfit.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-500">Gross Margin:</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full font-mono text-[11px] font-bold ${
-                        modalProfit >= 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {modalMarginPct}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* 6. Quantity */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Initial Stock Quantity <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    placeholder="0"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-lg text-xs font-bold text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500"
-                    required
-                  />
-                </div>
-
-                {/* 7. Measurement Unit */}
-                <div className="space-y-1">
-                  <label className="font-bold text-slate-700">
-                    Measurement Unit <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.unit}
-                    onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                    className="w-full h-9 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-blue-500"
-                  >
-                    {INVENTORY_UNITS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 8. Description */}
-                <div className="space-y-1 sm:col-span-2">
-                  <label className="font-bold text-slate-700">
-                    Product Description &amp; Technical Specifications
-                  </label>
-                  <textarea
-                    rows={3}
-                    placeholder="Enter detailed technical specifications, dimensions, refrigerant type, power rating, etc."
-                    value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full p-3 bg-white border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:border-blue-500 resize-none"
-                  />
-                </div>
-              </div>
-
-              {/* Action Buttons Aligned to Right */}
-              <div className="pt-4 flex items-center justify-end gap-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsFormModalOpen(false)}
-                  className="px-5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  <span>Cancel</span>
-                </button>
-                <button
-                  type="submit"
-                  className="px-6 py-2.5 bg-[#011635] hover:bg-[#03234d] text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-sm hover:shadow transition-all cursor-pointer"
-                >
-                  {editingProduct ? 'Update Product' : 'Add Product'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================== */}
-      {/* 5. MODAL: QUICK STOCK IN / OUT ADJUSTMENT                      */}
+      {/* 4. MODAL: QUICK STOCK IN / OUT ADJUSTMENT                      */}
       {/* ============================================================== */}
       {adjustModalProduct && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 bg-[#011635] text-white flex items-center justify-between">
+            <div className="p-4 bg-[#003579] text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <ArrowUpDown className="w-4 h-4 text-emerald-400" />
                 <h3 className="font-bold text-sm">Quick Stock Adjustment</h3>
@@ -918,7 +1294,7 @@ export default function InventoryView() {
       )}
 
       {/* ============================================================== */}
-      {/* 6. MODAL: DELETE CONFIRMATION                                  */}
+      {/* 5. MODAL: DELETE CONFIRMATION                                  */}
       {/* ============================================================== */}
       {deleteCandidate && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">

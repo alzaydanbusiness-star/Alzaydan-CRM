@@ -679,28 +679,42 @@ export default function OpportunityView({
     };
 
     const newStatus = matched.label === 'Lost' ? 'Lost' : matched.label === 'Won' ? 'Won' : 'Open';
+    const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
 
-    setOpportunities((prev) =>
-      prev.map((opp) => {
-        if (opp.id === oppId) {
-          return {
-            ...opp,
-            stage: matched.label,
-            status: newStatus,
-            probability: matched.probability,
-            lastModified: new Date().toLocaleDateString('en-GB')
-          };
-        }
-        return opp;
-      })
-    );
+    const updatedList = opportunities.map((opp) => {
+      if (opp.id === oppId) {
+        return {
+          ...opp,
+          stage: matched.label,
+          status: newStatus,
+          probability: matched.probability,
+          winProbability: matched.probability,
+          lastActivity: todayStr,
+          lastActivityDays: 'Today',
+          lastModified: todayStr
+        };
+      }
+      return opp;
+    });
+
+    setOpportunities(updatedList);
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+      window.dispatchEvent(new Event('alzaydan_opportunity_updated'));
+    } catch {}
+
+    if (typeof propSetOpportunities === 'function') {
+      propSetOpportunities(updatedList);
+    }
 
     if (viewTargetOpp && viewTargetOpp.id === oppId) {
       setViewTargetOpp((prev) => ({
         ...prev,
         stage: matched.label,
         status: newStatus,
-        probability: matched.probability
+        probability: matched.probability,
+        winProbability: matched.probability
       }));
     }
 
@@ -1191,11 +1205,99 @@ export default function OpportunityView({
     setActiveActionId(null);
   };
 
-  const handleOpenAssign = (item) => {
-    setAssignOppTarget(item);
-    setSelectedAssignOwner(item.owner || defaultOwner);
+  const handleOpenAssign = (item = null) => {
+    let target = item;
+    if (!target && selectedIds.length > 0) {
+      target = opportunities.find((o) => selectedIds.includes(o.id)) || null;
+    }
+    if (!target && opportunities.length > 0) {
+      target = opportunities[0];
+    }
+    setAssignOppTarget(target);
+    setSelectedAssignOwner(target?.owner || defaultOwner);
     setIsAssignModalOpen(true);
     setActiveActionId(null);
+  };
+
+  const handleSaveAssignment = () => {
+    let targetIds = [];
+    if (selectedIds && selectedIds.length > 0) {
+      targetIds = [...selectedIds];
+    } else if (assignOppTarget && assignOppTarget.id) {
+      targetIds = [assignOppTarget.id];
+    } else if (opportunities.length > 0) {
+      targetIds = [opportunities[0].id];
+    }
+
+    if (targetIds.length === 0) {
+      toast.error('Please select an opportunity to assign.');
+      setIsAssignModalOpen(false);
+      return;
+    }
+
+    const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+
+    const updatedList = opportunities.map((o) => {
+      if (targetIds.includes(o.id)) {
+        // Automatically advance from Enquiry to Qualification upon assignment
+        const nextStage = (!o.stage || o.stage === 'Enquiry') ? 'Qualification' : o.stage;
+        const matchedStage = STAGE_CONFIG.find(
+          (s) => s.label.toLowerCase() === nextStage.toLowerCase()
+        ) || { label: nextStage, probability: 30 };
+
+        const newStatus = matchedStage.label === 'Lost' ? 'Lost' : matchedStage.label === 'Won' ? 'Won' : 'Open';
+
+        return {
+          ...o,
+          owner: selectedAssignOwner,
+          opportunityOwner: selectedAssignOwner,
+          salesRep: selectedAssignOwner,
+          assignedTo: selectedAssignOwner,
+          assignedDate: todayStr,
+          stage: matchedStage.label,
+          status: newStatus,
+          probability: matchedStage.probability,
+          winProbability: matchedStage.probability,
+          lastActivity: todayStr,
+          lastActivityDays: 'Today',
+          lastModified: todayStr
+        };
+      }
+      return o;
+    });
+
+    setOpportunities(updatedList);
+
+    try {
+      localStorage.setItem('alzaydan_crm_opportunities', JSON.stringify(updatedList));
+      window.dispatchEvent(new Event('alzaydan_sales_sync'));
+      window.dispatchEvent(new Event('alzaydan_opportunity_updated'));
+    } catch (err) {
+      console.error('Error saving assigned opportunities:', err);
+    }
+
+    if (typeof propSetOpportunities === 'function') {
+      propSetOpportunities(updatedList);
+    }
+
+    if (viewTargetOpp && targetIds.includes(viewTargetOpp.id)) {
+      const targetOpp = updatedList.find((o) => o.id === viewTargetOpp.id);
+      if (targetOpp) setViewTargetOpp(targetOpp);
+    }
+
+    const assignedNames = opportunities
+      .filter((o) => targetIds.includes(o.id))
+      .map((o) => o.name || o.title || 'Opportunity');
+
+    toast.success(
+      targetIds.length === 1
+        ? `Opportunity "${assignedNames[0]}" assigned to ${selectedAssignOwner}!`
+        : `${targetIds.length} opportunities assigned to ${selectedAssignOwner}!`
+    );
+
+    setIsAssignModalOpen(false);
+    setAssignOppTarget(null);
+    setSelectedIds([]);
   };
 
   const handleOpenCreateQuotation = (item) => {
@@ -3425,7 +3527,7 @@ export default function OpportunityView({
 
                   <button
                     type="button"
-                    onClick={() => setIsAssignModalOpen(true)}
+                    onClick={() => handleOpenAssign()}
                     className="px-3 py-1.5 rounded-lg bg-[#011635] hover:bg-[#07244a] text-white text-xs font-bold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
                   >
                     <UserCheck className="w-3.5 h-3.5" />
@@ -3947,7 +4049,7 @@ export default function OpportunityView({
       {
         isAssignModalOpen && (
           <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95 duration-150 space-y-5">
               {/* Header: Assign Opportunity | [X] */}
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="font-bold text-base text-slate-900">
@@ -3965,15 +4067,15 @@ export default function OpportunityView({
                 </button>
               </div>
 
-              {/* Body: Assign To on left, User Dropdown on right */}
+              {/* Body: Assign To option only */}
               <div className="py-2">
                 <div className="grid grid-cols-12 items-center gap-3">
                   <label className="col-span-3 text-xs font-semibold text-slate-800">
                     Assign To
                   </label>
                   <div className="col-span-9 relative">
-                    <div className="flex items-center gap-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl">
-                      <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+                    <div className="flex items-center gap-2.5 w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      <div className="w-6 h-6 rounded-full bg-[#011635] text-white text-[11px] font-bold flex items-center justify-center shrink-0">
                         {(selectedAssignOwner || 'M')[0]?.toUpperCase()}
                       </div>
                       <select
@@ -3994,7 +4096,7 @@ export default function OpportunityView({
               </div>
 
               {/* Footer Buttons: Close | Update (Green) */}
-              <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
+              <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => {
@@ -4007,31 +4109,8 @@ export default function OpportunityView({
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (assignOppTarget) {
-                      setOpportunities((prev) =>
-                        prev.map((o) =>
-                          o.id === assignOppTarget.id
-                            ? { ...o, owner: selectedAssignOwner, opportunityOwner: selectedAssignOwner, salesRep: selectedAssignOwner }
-                            : o
-                        )
-                      );
-                      if (viewTargetOpp && viewTargetOpp.id === assignOppTarget.id) {
-                        setViewTargetOpp((prev) => ({
-                          ...prev,
-                          owner: selectedAssignOwner,
-                          opportunityOwner: selectedAssignOwner,
-                          salesRep: selectedAssignOwner
-                        }));
-                      }
-                      toast.success(`Opportunity "${assignOppTarget.name}" assigned to ${selectedAssignOwner}!`);
-                    } else {
-                      toast.success('Opportunity reassignments saved successfully.');
-                    }
-                    setIsAssignModalOpen(false);
-                    setAssignOppTarget(null);
-                  }}
-                  className="px-5 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer text-xs"
+                  onClick={handleSaveAssignment}
+                  className="px-6 py-2 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white font-bold transition shadow-xs cursor-pointer text-xs"
                 >
                   Update
                 </button>
