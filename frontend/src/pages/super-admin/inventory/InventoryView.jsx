@@ -40,6 +40,7 @@ import {
   INVENTORY_UNITS,
   syncCloudInventory
 } from '../../../utils/inventoryStorage';
+import { fetchInventoryFromApi } from '../../../api/crmApi';
 
 export default function InventoryView() {
   const [products, setProducts] = useState(() => getStoredInventory());
@@ -84,7 +85,7 @@ export default function InventoryView() {
   const imageInputRef1 = useRef(null);
   const imageInputRef2 = useRef(null);
 
-  // Pull cloud inventory in background on mount
+  // Pull cloud inventory in background on mount (Firestore + Cloudflare D1)
   useEffect(() => {
     syncCloudInventory().then((cloudItems) => {
       if (cloudItems && cloudItems.length > 0) {
@@ -92,6 +93,34 @@ export default function InventoryView() {
         saveStoredInventory(cloudItems);
       }
     });
+
+    fetchInventoryFromApi()
+      .then((apiItems) => {
+        if (Array.isArray(apiItems) && apiItems.length > 0) {
+          setProducts((prev) => {
+            const map = new Map();
+            prev.forEach((p) => map.set(p.product_code || p.id, p));
+            apiItems.forEach((p) => {
+              map.set(p.code || p.id, {
+                id: p.id,
+                product_name: p.name,
+                product_code: p.code,
+                category_id: p.category,
+                selling_price: p.sellingPrice,
+                purchase_price: p.purchasePrice,
+                quantity: p.stock,
+                unit: p.unit || 'PCS',
+                min_stock: p.lowStockAlert || 5,
+                product_image: p.image1 || '',
+                product_image2: p.image2 || '',
+                description: p.description || ''
+              });
+            });
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Listen for storage changes

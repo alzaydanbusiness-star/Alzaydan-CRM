@@ -30,6 +30,7 @@ import {
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
 import CommercialDocumentPdfModal, { numberToAEDWords } from '../../../components/CommercialDocumentPdfModal';
+import { fetchInvoicesFromApi, saveInvoiceToApi } from '../../../api/crmApi';
 
 export default function TaxInvoiceView({
   employees = [],
@@ -527,6 +528,22 @@ export default function TaxInvoiceView({
       window.dispatchEvent(new Event('alzaydan_sales_sync'));
     } catch {}
   }, [invoices]);
+
+  // Sync from Cloudflare D1 on mount
+  useEffect(() => {
+    fetchInvoicesFromApi()
+      .then((apiInvs) => {
+        if (Array.isArray(apiInvs) && apiInvs.length > 0) {
+          setInvoices((prev) => {
+            const map = new Map();
+            prev.forEach((inv) => map.set(inv.invoiceNo || inv.id, inv));
+            apiInvs.forEach((inv) => map.set(inv.invoiceNo || inv.id, inv));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Full Add Invoice Form State (Matching Reference Image 3 + Inherited Products)
   const [addInvoiceForm, setAddInvoiceForm] = useState({
@@ -1042,6 +1059,7 @@ export default function TaxInvoiceView({
       window.dispatchEvent(new Event('alzaydan_sales_sync'));
     } catch {}
     toast.success(`Tax Invoice "${newInvoice.invoiceNo}" generated successfully!`);
+    saveInvoiceToApi(newInvoice).catch(() => {});
     setViewMode('list');
 
     // Reset and bump sequence

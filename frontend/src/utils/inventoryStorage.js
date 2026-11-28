@@ -2,6 +2,7 @@
 // Full support for: id, product_name, product_code, category_id, description, purchase_price, selling_price, quantity, unit
 import { collection, doc, setDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../config/firebase';
+import { saveInventoryProductToApi, deleteInventoryProductFromApi } from '../api/crmApi';
 
 export const INVENTORY_STORAGE_KEY = 'alzaydan_inventory_products';
 export const INVENTORY_CATEGORIES_KEY = 'alzaydan_inventory_categories';
@@ -286,6 +287,11 @@ export function saveStoredInventory(products) {
 
     // Non-blocking Firestore sync
     syncToFirestore(sanitized).catch(() => {});
+
+    // Non-blocking Cloudflare D1 sync
+    sanitized.forEach((p) => {
+      saveInventoryProductToApi(p).catch(() => {});
+    });
   } catch (err) {
     console.error('Failed to save inventory to localStorage', err);
   }
@@ -355,7 +361,8 @@ export function deleteInventoryProduct(id) {
   const filtered = products.filter(p => String(p.id) !== String(id));
   saveStoredInventory(filtered);
 
-  // Background delete in Firestore
+  // Background delete in Firestore and Cloudflare D1
+  deleteInventoryProductFromApi(toDelete?.product_code || id).catch(() => {});
   try {
     const docRef = doc(db, 'inventory', String(id));
     deleteDoc(docRef).catch(() => {});

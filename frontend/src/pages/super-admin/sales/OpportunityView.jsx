@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
 import { normalizeOpportunity } from '../../../utils/salesUtils';
 import CommercialDocumentPdfModal from '../../../components/CommercialDocumentPdfModal';
+import { fetchOpportunitiesFromApi, saveOpportunityToApi, deleteOpportunityFromApi } from '../../../api/crmApi';
 
 export default function OpportunityView({
   employees = [],
@@ -671,6 +672,23 @@ export default function OpportunityView({
     }
   }, [opportunities, propSetOpportunities]);
 
+  // Sync from Cloudflare D1 Database on mount
+  useEffect(() => {
+    fetchOpportunitiesFromApi()
+      .then((apiOpps) => {
+        if (Array.isArray(apiOpps) && apiOpps.length > 0) {
+          const normalized = apiOpps.map(normalizeOpportunity).filter(Boolean);
+          setOpportunities((prev) => {
+            const map = new Map();
+            prev.forEach((o) => map.set(o.id || o.code, o));
+            normalized.forEach((o) => map.set(o.id || o.code, o));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Handler to dynamically update an opportunity's stage and probability
   const handleUpdateStage = (oppId, newStage) => {
     const matched = STAGE_CONFIG.find((s) => s.label.toLowerCase() === (newStage || '').toLowerCase()) || {
@@ -706,6 +724,11 @@ export default function OpportunityView({
 
     if (typeof propSetOpportunities === 'function') {
       propSetOpportunities(updatedList);
+    }
+
+    const updatedTarget = updatedList.find((o) => o.id === oppId);
+    if (updatedTarget) {
+      saveOpportunityToApi(updatedTarget).catch(() => {});
     }
 
     if (viewTargetOpp && viewTargetOpp.id === oppId) {
@@ -1011,6 +1034,11 @@ export default function OpportunityView({
     if (typeof propSetOpportunities === 'function') {
       propSetOpportunities(updatedList);
     }
+
+    const updatedTarget = updatedList.find((o) => o.id === oppId);
+    if (updatedTarget) {
+      saveOpportunityToApi(updatedTarget).catch(() => {});
+    }
     toast.success(`Opportunity "${newOpp.name}" added successfully!`);
     setIsAddModalOpen(false);
     setFormData({
@@ -1115,6 +1143,11 @@ export default function OpportunityView({
     } catch {}
     if (typeof propSetOpportunities === 'function') {
       propSetOpportunities(updatedList);
+    }
+
+    const updatedTarget = updatedList.find((o) => o.id === oppId);
+    if (updatedTarget) {
+      saveOpportunityToApi(updatedTarget).catch(() => {});
     }
     toast.success(`Opportunity "${newOpp.name}" added successfully!`);
     setViewMode('list');
@@ -1280,6 +1313,11 @@ export default function OpportunityView({
       propSetOpportunities(updatedList);
     }
 
+    const updatedTarget = updatedList.find((o) => o.id === oppId);
+    if (updatedTarget) {
+      saveOpportunityToApi(updatedTarget).catch(() => {});
+    }
+
     if (viewTargetOpp && targetIds.includes(viewTargetOpp.id)) {
       const targetOpp = updatedList.find((o) => o.id === viewTargetOpp.id);
       if (targetOpp) setViewTargetOpp(targetOpp);
@@ -1372,6 +1410,7 @@ export default function OpportunityView({
   };
 
   const handleDelete = (id, name) => {
+    deleteOpportunityFromApi(id).catch(() => {});
     const updated = opportunities.filter((i) => i.id !== id && i.code !== id && i.name !== name);
     setOpportunities(updated);
     try {

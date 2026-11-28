@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { createFirebaseUser, syncFirestoreUsers } from '../../../services/firebaseAuth';
+import { fetchUsersFromApi, saveUserToApi } from '../../../api/crmApi';
 import {
   getStoredUsers,
   saveStoredUsers,
@@ -714,6 +715,42 @@ export default function UsersDirectoryView() {
         });
       }
     }).catch(() => {});
+
+    // Sync from Cloudflare D1 on mount
+    fetchUsersFromApi()
+      .then((apiUsers) => {
+        if (Array.isArray(apiUsers) && apiUsers.length > 0) {
+          setUsers((prev) => {
+            const merged = [...prev];
+            let hasNew = false;
+            apiUsers.forEach((au) => {
+              const auEmail = (au.email || '').toLowerCase().trim();
+              const exists = merged.some(
+                (m) => (m.email && m.email.toLowerCase().trim() === auEmail) || m.id === au.id
+              );
+              if (!exists) {
+                merged.push({
+                  id: au.id,
+                  name: au.name,
+                  email: au.email,
+                  role: au.role,
+                  designation: au.designation || 'Sales Executive',
+                  phone: au.mobile || '+971 50 000 0000',
+                  status: au.status || 'Active',
+                  avatarBg: 'bg-[#011635] text-white',
+                  avatarText: (au.name || 'U')[0].toUpperCase()
+                });
+                hasNew = true;
+              }
+            });
+            if (hasNew) {
+              saveStoredUsers(merged);
+            }
+            return merged;
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Hierarchy Tier Derivations

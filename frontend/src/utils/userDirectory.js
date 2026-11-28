@@ -1,6 +1,7 @@
 // Al Zaydan CRM - Canonical Current Users & Directory Synchronization Service
 // Provides real active users for all modules (Leads, Customers, Sales, Tasks, Overview)
 // and eliminates hardcoded dummy users.
+import { saveUserToApi } from '../api/crmApi';
 
 export const CANONICAL_SYSTEM_USERS = [
   {
@@ -303,6 +304,7 @@ export function addStoredUser(newUser) {
 
   const updated = [newUser, ...filtered];
   saveStoredUsers(updated);
+  saveUserToApi(newUser).catch(() => {});
   return updated;
 }
 

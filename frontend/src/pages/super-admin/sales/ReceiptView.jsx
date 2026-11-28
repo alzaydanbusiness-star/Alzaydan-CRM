@@ -31,6 +31,7 @@ import {
 import { toast } from 'sonner';
 import { getStoredUsers } from '../../../utils/userDirectory';
 import CommercialDocumentPdfModal, { numberToAEDWords } from '../../../components/CommercialDocumentPdfModal';
+import { fetchReceiptsFromApi, saveReceiptToApi, deleteReceiptFromApi } from '../../../api/crmApi';
 
 export default function ReceiptView({
   employees = [],
@@ -292,6 +293,22 @@ export default function ReceiptView({
     } catch {}
   }, [receipts]);
 
+  // Sync from Cloudflare D1 on mount
+  useEffect(() => {
+    fetchReceiptsFromApi()
+      .then((apiRecs) => {
+        if (Array.isArray(apiRecs) && apiRecs.length > 0) {
+          setReceipts((prev) => {
+            const map = new Map();
+            prev.forEach((r) => map.set(r.receiptNo || r.id, r));
+            apiRecs.forEach((r) => map.set(r.receiptNo || r.id, r));
+            return Array.from(map.values());
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   // Full Add Receipt Form State (Cleaned - NO Terms & Conditions)
   const [addReceiptForm, setAddReceiptForm] = useState({
     // Left Column
@@ -520,6 +537,7 @@ export default function ReceiptView({
       window.dispatchEvent(new Event('alzaydan_sales_sync'));
     } catch {}
     toast.success(`Payment Receipt "${newReceipt.receiptNo}" issued successfully!`);
+    saveReceiptToApi(newReceipt).catch(() => {});
     setViewMode('list');
 
     // Bump sequence for next time
@@ -567,6 +585,7 @@ export default function ReceiptView({
   };
 
   const handleDeleteReceipt = (id, no) => {
+    deleteReceiptFromApi(no || id).catch(() => {});
     const updated = receipts.filter((r) => r.id !== id && r.receiptNo !== no && r.receiptNo !== id);
     setReceipts(updated);
     try {
