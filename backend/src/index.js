@@ -112,7 +112,6 @@ app.get('/api/receipts', async (c) => {
     const { results: receipts } = await c.env.DB.prepare('SELECT * FROM receipts ORDER BY created_at DESC').all();
     const { results: items } = await c.env.DB.prepare('SELECT * FROM document_items WHERE document_type = "RECEIPT"').all();
 
-    // Map line items to respective receipt
     const itemsMap = {};
     (items || []).forEach((it) => {
       if (!itemsMap[it.document_id]) itemsMap[it.document_id] = [];
@@ -172,7 +171,6 @@ app.post('/api/receipts', async (c) => {
       b.date || '16-11-2026'
     ).run();
 
-    // Insert line items if provided
     if (b.products && Array.isArray(b.products)) {
       await c.env.DB.prepare('DELETE FROM document_items WHERE document_id = ? AND document_type = "RECEIPT"').bind(receiptNo).run();
       for (const item of b.products) {
@@ -325,7 +323,210 @@ app.post('/api/invoices', async (c) => {
 });
 
 // ==============================================================
-// 6. CUSTOMERS ENDPOINTS
+// 6. QUOTATIONS / COMMERCIAL OFFERS ENDPOINTS
+// ==============================================================
+app.get('/api/quotations', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM quotations ORDER BY created_at DESC').all();
+    const formatted = (results || []).map((q) => ({
+      ...q,
+      quotationNo: q.quotation_no,
+      opportunityRef: q.opportunity_ref
+    }));
+    return c.json(formatted);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/quotations', async (c) => {
+  try {
+    const b = await c.req.json();
+    const id = b.id || `quot-${Date.now()}`;
+    const quotNo = b.quotationNo || b.quotation_no || `CTQUOT#${Date.now()}`;
+    await c.env.DB.prepare(
+      'INSERT OR REPLACE INTO quotations (id, quotation_no, opportunity_ref, customer, owner, subtotal, vat, total, status, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      id,
+      quotNo,
+      b.opportunityRef || b.opportunity_ref || '',
+      b.customer || 'Commercial Client',
+      b.owner || 'MUHAMMED RISWAN',
+      Number(b.subtotal || 0),
+      Number(b.vat || 0),
+      Number(b.total || 0),
+      b.status || 'Draft',
+      b.date || '16-11-2026'
+    ).run();
+    return c.json({ success: true, id, quotationNo: quotNo });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/quotations/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await c.env.DB.prepare('DELETE FROM quotations WHERE id = ? OR quotation_no = ?').bind(id, id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ==============================================================
+// 7. SALES ORDERS ENDPOINTS
+// ==============================================================
+app.get('/api/orders', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM sales_orders ORDER BY created_at DESC').all();
+    const formatted = (results || []).map((o) => ({
+      ...o,
+      orderNo: o.order_no,
+      quotationRef: o.quotation_ref
+    }));
+    return c.json(formatted);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/orders', async (c) => {
+  try {
+    const b = await c.req.json();
+    const id = b.id || `ord-${Date.now()}`;
+    const ordNo = b.orderNo || b.order_no || `CTSO#${Date.now()}`;
+    await c.env.DB.prepare(
+      'INSERT OR REPLACE INTO sales_orders (id, order_no, quotation_ref, customer, owner, total, status, date) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      id,
+      ordNo,
+      b.quotationRef || b.quotation_ref || '',
+      b.customer || 'Commercial Client',
+      b.owner || 'MUHAMMED RISWAN',
+      Number(b.total || 0),
+      b.status || 'Pending',
+      b.date || '16-11-2026'
+    ).run();
+    return c.json({ success: true, id, orderNo: ordNo });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/orders/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await c.env.DB.prepare('DELETE FROM sales_orders WHERE id = ? OR order_no = ?').bind(id, id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ==============================================================
+// 8. LEADS ENDPOINTS
+// ==============================================================
+app.get('/api/leads', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM leads ORDER BY created_at DESC').all();
+    const formatted = (results || []).map((l) => ({
+      ...l,
+      name: l.lead_name,
+      company: l.company_name,
+      email: l.contact_email,
+      phone: l.contact_phone,
+      assignedTo: l.assigned_to
+    }));
+    return c.json(formatted);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/leads', async (c) => {
+  try {
+    const b = await c.req.json();
+    const id = b.id || `lead-${Date.now()}`;
+    await c.env.DB.prepare(
+      'INSERT OR REPLACE INTO leads (id, lead_name, company_name, contact_email, contact_phone, source, assigned_to, status, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      id,
+      b.name || b.lead_name || 'New Inbound Lead',
+      b.company || b.company_name || '',
+      b.email || b.contact_email || '',
+      b.phone || b.contact_phone || '',
+      b.source || 'Inbound Direct',
+      b.assignedTo || b.assigned_to || 'MUHAMMED RISWAN',
+      b.status || 'Pending',
+      b.notes || ''
+    ).run();
+    return c.json({ success: true, id });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/leads/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await c.env.DB.prepare('DELETE FROM leads WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ==============================================================
+// 9. TASKS ENDPOINTS
+// ==============================================================
+app.get('/api/tasks', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM tasks ORDER BY created_at DESC').all();
+    const formatted = (results || []).map((t) => ({
+      ...t,
+      assignedTo: t.assigned_to,
+      dueDate: t.due_date
+    }));
+    return c.json(formatted);
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.post('/api/tasks', async (c) => {
+  try {
+    const b = await c.req.json();
+    const id = b.id || `task-${Date.now()}`;
+    await c.env.DB.prepare(
+      'INSERT OR REPLACE INTO tasks (id, title, customer, assigned_to, priority, due_date, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).bind(
+      id,
+      b.title || 'Follow up task',
+      b.customer || '',
+      b.assignedTo || b.assigned_to || 'MUHAMMED RISWAN',
+      b.priority || 'Medium',
+      b.dueDate || b.due_date || '28-11-2026',
+      b.status || 'Pending'
+    ).run();
+    return c.json({ success: true, id });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+app.delete('/api/tasks/:id', async (c) => {
+  try {
+    const id = c.req.param('id');
+    await c.env.DB.prepare('DELETE FROM tasks WHERE id = ?').bind(id).run();
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// ==============================================================
+// 10. CUSTOMERS ENDPOINTS
 // ==============================================================
 app.get('/api/customers', async (c) => {
   try {

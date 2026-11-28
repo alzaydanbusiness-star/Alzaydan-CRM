@@ -1,0 +1,9 @@
+name = "alzaydan-crm"
+main = "backend/src/index.js"
+compatibility_date = "2026-11-28"
+
+# Cloudflare D1 Database Binding for Al Zaydan CRM
+[[d1_databases]]
+binding = "DB"
+database_name = "al-zaydan-crm-db"
+database_id = "d4a568fa-8a32-4253-905e-6b2524c503bb"

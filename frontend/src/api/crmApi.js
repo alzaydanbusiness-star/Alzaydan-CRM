@@ -116,7 +116,89 @@ export async function saveUserToApi(user) {
   });
 }
 
-// Health Check
+// ==============================================================
+// 6. QUOTATIONS / COMMERCIAL OFFERS API
+// ==============================================================
+export async function fetchQuotationsFromApi() {
+  return await apiFetch('/api/quotations');
+}
+
+export async function saveQuotationToApi(quotation) {
+  return await apiFetch('/api/quotations', {
+    method: 'POST',
+    body: JSON.stringify(quotation)
+  });
+}
+
+export async function deleteQuotationFromApi(id) {
+  return await apiFetch(`/api/quotations/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==============================================================
+// 7. SALES ORDERS API
+// ==============================================================
+export async function fetchOrdersFromApi() {
+  return await apiFetch('/api/orders');
+}
+
+export async function saveOrderToApi(order) {
+  return await apiFetch('/api/orders', {
+    method: 'POST',
+    body: JSON.stringify(order)
+  });
+}
+
+export async function deleteOrderFromApi(id) {
+  return await apiFetch(`/api/orders/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==============================================================
+// 8. LEADS API
+// ==============================================================
+export async function fetchLeadsFromApi() {
+  return await apiFetch('/api/leads');
+}
+
+export async function saveLeadToApi(lead) {
+  return await apiFetch('/api/leads', {
+    method: 'POST',
+    body: JSON.stringify(lead)
+  });
+}
+
+export async function deleteLeadFromApi(id) {
+  return await apiFetch(`/api/leads/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==============================================================
+// 9. TASKS API
+// ==============================================================
+export async function fetchTasksFromApi() {
+  return await apiFetch('/api/tasks');
+}
+
+export async function saveTaskToApi(task) {
+  return await apiFetch('/api/tasks', {
+    method: 'POST',
+    body: JSON.stringify(task)
+  });
+}
+
+export async function deleteTaskFromApi(id) {
+  return await apiFetch(`/api/tasks/${id}`, {
+    method: 'DELETE'
+  });
+}
+
+// ==============================================================
+// 10. HEALTH CHECK
+// ==============================================================
 export async function checkBackendHealth() {
   try {
     const data = await apiFetch('/api/health');
